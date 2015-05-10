@@ -30,14 +30,14 @@ To set things up:
         git clone https://github.com/UbiquityRobotics/bus_server.git
         git clone https://github.com/UbiquityRobotics/bus_slave.git
         # The following command downloads ~2GB of git version control stuff.
-	# Even with a fast link it takes a while...
+        # Even with a fast link it takes a while...
         git clone https://github.com/UbiquityRobotics/Arduino.git
 
 Next, we need to bring over all the compilers and stuff to support
 the AVR compilation environment:
 
         sudo apt-get avr-libc avrdude binutils-avr gcc-avr
-	# We also need GNU make:
+        # We also need GNU make:
         sudo apt-get install build-essential
 
 ## Installing the Bootloader

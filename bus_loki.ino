@@ -11,8 +11,12 @@
 #define BUS_LOKI_PROGRAM_SONAR_TEST 4
 #define BUS_LOKI_PROGRAM_UART_WRITE 5
 #define BUS_LOKI_PROGRAM_UART_ECHO 6
+#define BUS_LOKI_PROGRAM_RAB 7		// RAB = ROS Arduino Bridge
 
-#define BUS_LOKI_PROGRAM BUS_LOKI_PROGRAM_MOTOR
+#define BUS_LOKI_PROGRAM BUS_LOKI_PROGRAM_RAB
+
+// Make sure we are using the ROS Arduino Bridge as configured for LOKI:
+#define TEST TEST_RAB_LOKI
 
 // Define pin numbers:
 static const int encoder_r1_pin = 10;		// IC Pin 23
@@ -85,7 +89,16 @@ void setup() {
 
   leds_byte_write(0);
   host_uart->begin(16000000L, 115200L, (Character *)"8N1");
-  host_uart->print((Text)"Double echo\r\n");
+  //host_uart->print((Text)"Double echo\r\n");
+
+  switch (BUS_LOKI_PROGRAM) {
+    case BUS_LOKI_PROGRAM_RAB: {
+      host_uart->print("Start bridge setup\r\n");
+      bridge_setup(TEST);
+      host_uart->print("Bridge setup done\r\n");
+      break;
+    }
+  }
 }
 
 char led_counter = 0;
@@ -192,6 +205,10 @@ void loop() {
       Character character = host_uart->frame_get();
       host_uart->frame_put((UShort)character);
       host_uart->frame_put((UShort)character);
+      break;
+    }
+    case BUS_LOKI_PROGRAM_RAB: {
+      bridge_loop(TEST);
       break;
     }
   }
