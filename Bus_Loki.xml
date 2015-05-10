@@ -1,0 +1,124 @@
+<Module Name="Bus_Loki" Vendor="makerbus.com" Generate="Ino_Slave"
+ Address_RE="^[0-9]+$" Address_Type="MakerBus" Default_Address="38"
+ Brief="Loki ROS Robot">
+  <Overview>
+    The Bus_Loki module is implements a small ROS Robot.
+  </Overview>
+  <Classification Level1="Vendors" Level2="makerbus.com" Level3="Actuators" />
+  <Classification Level1="Buses" Level2="MakerBus" />
+  <Classification Level1="Catagories" Level2="Actuators" Level3="Motor" />
+  <Register Name="LED" Type="Logical" Number="0"
+   Brief="LED to control">
+    <Description>
+      This register controls the on-board LED.
+    </Description>
+  </Register>
+  <Register Name="Encoder1" Type="Integer" Number="2"
+   Brief="Encoder 1">
+    <Description>
+      This register is associated with the first encoder.
+    </Description>
+  </Register>
+  <Register Name="Encoder2" Type="Integer" Number="4"
+   Brief="Encoder 2">
+    <Description>
+      This register is associated with the second encoder.
+    </Description>
+  </Register>
+  <Function Name="Encoders_Reset" Number="6"
+   Brief="Reset both encoders to zero.">
+    <Description>
+      This function will reset both encoders to zero.
+    </Description>
+  </Function>
+  <Function Name="encoders_latch" Number="7"
+   Brief="Cause both encoder values to be latched.">
+    <Description>
+      This function will cause the encoder values to be latched.
+      The next time either the encoder1 or encoder2 register is
+      accessed, the latched value is returned.  After that non-
+      latched values are returned.
+    </Description>
+  </Function>
+  <Register Name="Motor1" Type="Byte" Number="8"
+   Brief="Motor 1">
+    <Description>
+      This register is specifies the motor1  speed.
+    </Description>
+  </Register>
+  <Register Name="Motor2" Type="Byte" Number="10"
+   Brief="Motor 2">
+    <Description>
+      This register is specifis the motor2 speed.
+    </Description>
+  </Register>
+  <Register Name="Motor1_Reverse" Type="Logical" Number="12"
+   Brief="Toggle motor1 direction.">
+    <Description>
+      This register causes motor 1 to go in the opposite direct
+      direction when given a positive value.
+    </Description>
+  </Register>
+  <Register Name="Motor2_Reverse" Type="Logical" Number="14"
+   Brief="Toggle motor2 direction.">
+    <Description>
+      This register causes motor 2 to go in the opposite direct
+      direction when given a positive value.
+    </Description>
+  </Register>
+  <Register Name="Encoder1_Reverse" Type="Logical" Number="16"
+   Brief="Toggle encoder1 direction.">
+    <Description>
+      This register causes encoder 1 to go in the opposite direction.
+    </Description>
+  </Register>
+  <Register Name="Encoder2_Reverse" Type="Logical" Number="18"
+   Brief="Toggle encoder2 direction.">
+    <Description>
+      This register causes encoder 2 to go in the opposite direction.
+    </Description>
+  </Register>
+  <Register Name="Motors_Encoders_Swap" Type="Logical" Number="20"
+   Brief="Swap motor/encoders.">
+    <Description>
+      This register causes the motors and encoders to be swapped.
+    </Description>
+  </Register>
+  <Register Name="PID_Proportional" Type="Short" Number="22"
+   Brief="Kp proportional constant numerator for PID algorithm.">
+    <Description>
+      This register specifies a signed 16-bit numerator that when
+      divided by a the common demomitator is used by the PID
+      algorithm as the Kp proportional constant.
+    </Description>
+  </Register>
+  <Register Name="PID_Integral" Type="Short" Number="24"
+   Brief="Ki integral constant numerator for PID algorithm.">
+    <Description>
+      This register specifies a signed 16-bit numerator that when
+      divided by a the common demomitator is used by the PID
+      algorithm as the Ki integral constant.
+    </Description>
+  </Register>
+  <Register Name="PID_Derivative" Type="Short" Number="26"
+   Brief="Kd derivative constant numerator for PID algorithm.">
+    <Description>
+      This register specifies a signed 16-bit numerator that when
+      divided by a the common demomitator is used by the PID
+      algorithm as the Kd derivative constant.
+    </Description>
+  </Register>
+  <Register Name="PID_Denominator" Type="Short" Number="28"
+   Brief="Common deonominator for the PID constants.">
+    <Description>
+      This register specifies a signed 16-bit denominator that is
+      used to divide the Kp, Ki, and Kd numerators.
+    </Description>
+  </Register>
+  <Register Name="PID_Active" Type="Logical" Number="30"
+   Brief="Register to enable/disable PID algorithm.">
+    <Description>
+      This register is set to *True* to enable the PID algorithm.
+    </Description>
+  </Register>
+</Module>
