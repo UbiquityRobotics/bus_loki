@@ -46,7 +46,14 @@ static const int sonar_trig6_pin = 26;		// IC Pin 74
 static const int sonar_trig7_pin = 27;		// IC Pin 73
 static const int sonar_trig8_pin = 28;		// IC Pin 72
 
-Bridge bridge(&avr_uart0, &avr_uart1, &avr_uart0);
+// Define the UART's:
+NULL_UART null_uart;
+AVR_UART *bus_uart = &avr_uart1;
+AVR_UART *debug_uart = &avr_uart0;
+AVR_UART *host_uart = &avr_uart0;
+
+Bus_Slave bus_slave((UART *)bus_uart, (UART *)host_uart);
+Bridge bridge(&avr_uart0, &avr_uart1, &avr_uart0, &bus_slave);
 
 void leds_byte_write(char byte) {
     digitalWrite(led0_pin, (byte & 1) ? LOW : HIGH);
