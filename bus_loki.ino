@@ -1,5 +1,4 @@
 // Copyright (c) 2015 by Wayne C. Gramlich.  All rights reserved.
-
 #include <Bus_Slave.h>
 #include <Frame_Buffer.h>
 #include <bus_server.h>
@@ -17,6 +16,26 @@
 
 // Make sure we are using the ROS Arduino Bridge as configured for LOKI:
 #define TEST TEST_RAB_LOKI
+
+class Loki_Motor_Encoder : Bus_Motor_Encoder {
+ public:
+  Integer encoder_get();
+  void encoder_set(Integer encoder);
+  void pwm_set(Byte pwm);
+};
+
+void Loki_Motor_Encoder::pwm_set(Byte pwm) {
+  // Do something here:
+}
+
+Integer Loki_Motor_Encoder::encoder_get() {
+  // Do something here:
+  return 0;
+}
+
+void Loki_Motor_Encoder::encoder_set(Integer encoder) {
+  // Do something here:
+}
 
 // Define pin numbers:
 static const int encoder_r1_pin = 10;		// IC Pin 23
@@ -52,10 +71,12 @@ AVR_UART *bus_uart = &avr_uart1;
 AVR_UART *debug_uart = &avr_uart0;
 AVR_UART *host_uart = &avr_uart0;
 
-Bus_Motor_Encoder left_motor_encoder, right_motor_encoder;
 Bus_Slave bus_slave((UART *)bus_uart, (UART *)host_uart);
+
+Loki_Motor_Encoder left_motor_encoder, right_motor_encoder;
 Bridge bridge(&avr_uart0, &avr_uart1, &avr_uart0, &bus_slave,
-  &left_motor_encoder, &right_motor_encoder);
+ (Bus_Motor_Encoder *)&left_motor_encoder,
+ (Bus_Motor_Encoder *)&right_motor_encoder);
 
 void leds_byte_write(char byte) {
     digitalWrite(led0_pin, (byte & 1) ? LOW : HIGH);
