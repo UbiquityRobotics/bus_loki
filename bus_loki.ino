@@ -46,6 +46,8 @@ static const int sonar_trig6_pin = 26;		// IC Pin 74
 static const int sonar_trig7_pin = 27;		// IC Pin 73
 static const int sonar_trig8_pin = 28;		// IC Pin 72
 
+Bridge bridge(&avr_uart0, &avr_uart1, &avr_uart0);
+
 void leds_byte_write(char byte) {
     digitalWrite(led0_pin, (byte & 1) ? LOW : HIGH);
     digitalWrite(led1_pin, (byte & 2) ? LOW : HIGH);
@@ -56,6 +58,7 @@ void leds_byte_write(char byte) {
     digitalWrite(led6_pin, (byte & 64) ? LOW : HIGH);
     digitalWrite(led7_pin, (byte & 128) ? LOW : HIGH);
 }
+
 
 // The *setup*() routine runs once when you press reset:
 void setup() {                
@@ -93,9 +96,9 @@ void setup() {
 
   switch (BUS_LOKI_PROGRAM) {
     case BUS_LOKI_PROGRAM_RAB: {
-      host_uart->print("Start bridge setup\r\n");
-      bridge_setup(TEST);
-      host_uart->print("Bridge setup done\r\n");
+      host_uart->print((Text)"Start bridge setup\r\n");
+      bridge.setup(TEST);
+      host_uart->print((Text)"Bridge setup done\r\n");
       break;
     }
   }
@@ -208,7 +211,7 @@ void loop() {
       break;
     }
     case BUS_LOKI_PROGRAM_RAB: {
-      bridge_loop(TEST);
+      bridge.loop(TEST);
       break;
     }
   }
