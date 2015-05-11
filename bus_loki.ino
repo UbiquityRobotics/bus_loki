@@ -52,8 +52,10 @@ AVR_UART *bus_uart = &avr_uart1;
 AVR_UART *debug_uart = &avr_uart0;
 AVR_UART *host_uart = &avr_uart0;
 
+Bus_Motor_Encoder left_motor_encoder, right_motor_encoder;
 Bus_Slave bus_slave((UART *)bus_uart, (UART *)host_uart);
-Bridge bridge(&avr_uart0, &avr_uart1, &avr_uart0, &bus_slave);
+Bridge bridge(&avr_uart0, &avr_uart1, &avr_uart0, &bus_slave,
+  &left_motor_encoder, &right_motor_encoder);
 
 void leds_byte_write(char byte) {
     digitalWrite(led0_pin, (byte & 1) ? LOW : HIGH);
