@@ -290,57 +290,7 @@ void loop() {
     }
     case BUS_LOKI_PROGRAM_ENCODERS_TO_LEDS: {
       // Read the encoder values:
-      if (0) {
-	Logical encoder_r1 = (Logical)0;
-        Logical encoder_r2 = (Logical)0;
-	Logical encoder_l1 = (Logical)0;
-	Logical encoder_l2 = (Logical)0;
-	UByte bits = 0;
-	if (1) {
-	  encoder_r1 = digitalRead(encoder_r1_pin);
-	  encoder_r2 = digitalRead(encoder_r2_pin);
-	  encoder_l1 = digitalRead(encoder_l1_pin);
-	  encoder_l2 = digitalRead(encoder_l2_pin);
-	} else {
-	  bits = PINB;
-	  if ((bits & 0x10) != 0) {
-	    encoder_r1 = (Logical)1;
-	  }
-	  if ((bits & 0x20) != 0) {
-	    encoder_r2 = (Logical)1;
-	  }
-	  if ((bits & 0x40) != 0) {
-	    encoder_l1 = (Logical)1;
-	  }
-	  if ((bits & 0x80) != 0) {
-	    encoder_l2 = (Logical)1;
-	  }
-	}
-
-	if (1) {
-	  char leds = 0;
-          if (encoder_r1) {
-	  leds |= 1;
-	  }
-	  if (encoder_r2) {
-	    leds |= 2;
-	  }
-	  if (encoder_l1) {
-	    leds |= 0x40;
-	  }
-	  if (encoder_l2) {
-	    leds |= 0x80;
-	  }
-	  PORTC = leds;
-	} else {
-	  digitalWrite(led0_pin, encoder_r1);
- 	  digitalWrite(led1_pin, encoder_r2);
-	  digitalWrite(led6_pin, encoder_l1);
-	  digitalWrite(led7_pin, encoder_l2);
-	}
-      } else {
-	PORTC = PINB;
-      }
+      PORTC = PINB;
       break;
     }
     case BUS_LOKI_PROGRAM_LEDS_COUNT: {
@@ -396,30 +346,30 @@ void loop() {
 	//Serial.print((encoder_bits >> 2) & 0x3);
 	//Serial.print("\n");
 
-	// Process encoder1:
-	// *encoder1_state* has 3 bits of state - '0000 0sss'.
-	// We take encoder1 bits encoder from *encoder_bits* ('0000 00ee'),
-	// shift them left by 3, and OR them with the *encoder1_state*:
+	// Process encoder2:
+	// *encoder2_state* has 3 bits of state - '0000 0sss'.
+	// We take encoder2 bits encoder from *encoder_bits* ('0000 00ee'),
+	// shift them left by 3, and OR them with the *encoder2_state*:
 	//
-	//     encoder1_state:  0000 0sss
+	//     encoder2_state:  0000 0sss
 	//     encoder_bits<<3: 000e e000
 	//  OR ==========================
 	//     index            000e esss
 	//
-	UByte index = ((encoder_bits & 0x3) << 3) | encoder1_state;
+	UByte index = ((encoder_bits & 0x3) << 3) | encoder2_state;
 
 	// Note that *state_transition* is signed.
 	Byte state_transition = state_transition_table[index];
-	encoder1 += state_transition >> 3;
-	encoder1_state = (unsigned char)(state_transition & 0x7);
-
-	// Process encoder2:
-	// Now we do the same for encoder2 whose bits are 2 bits over
-	// ('0000 eexx'):
-	index = ((encoder_bits & 0xc) << 1) | encoder2_state;
-	state_transition = state_transition_table[index];
 	encoder2 += state_transition >> 3;
 	encoder2_state = (unsigned char)(state_transition & 0x7);
+
+	// Process encoder1:
+	// Now we do the same for encoder1 whose bits are 2 bits over
+	// ('0000 eexx'):
+	index = ((encoder_bits & 0xc) << 1) | encoder1_state;
+	state_transition = state_transition_table[index];
+	encoder1 += state_transition >> 3;
+	encoder1_state = (unsigned char)(state_transition & 0x7);
       }
 
       bridge.loop(TEST);
@@ -439,21 +389,25 @@ Loki_Motor_Encoder::Loki_Motor_Encoder(UByte input1_pin, UByte input2_pin,
 }
 
 void Loki_Motor_Encoder::pwm_set(Byte pwm) {
+  static const UShort friction_pwm = 5;
   UByte input1 = LOW;
   UByte input2 = LOW;
-  UByte enable_pwm = 0;
+  UShort enable_pwm = 0;
   if (pwm > 0) {
-    enable_pwm = ((UByte)pwm << 1) | 1;
+    enable_pwm = ((UShort)pwm << 1) + friction_pwm;
     input1 = HIGH;
   } else if (pwm < 0) {
-    enable_pwm = (((UByte)(-pwm)) << 1) | 1;
+    enable_pwm = (((UShort)(-pwm)) << 1) + friction_pwm;
     input2 = HIGH;
+  }
+  if (enable_pwm > 255) {
+    enable_pwm = 255;
   }
 
   // Set the direction pins and pulse the output:
   digitalWrite(_input1_pin, input1);
   digitalWrite(_input2_pin, input2);
-  analogWrite(_enable_pin, enable_pwm);
+  analogWrite(_enable_pin, (UByte)enable_pwm);
 }
 
 Integer Loki_Motor_Encoder::encoder_get() {
