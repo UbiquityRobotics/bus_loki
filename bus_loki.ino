@@ -209,9 +209,9 @@ void setup() {
       break;
     }
     case BUS_LOKI_PROGRAM_RAB: {
-      host_uart->print((Text)"Start bridge setup\r\n");
+      //host_uart->print((Text)"Start bridge setup\r\n");
       bridge.setup(TEST);
-      host_uart->print((Text)"Bridge setup done\r\n");
+      //host_uart->print((Text)"Bridge setup done\r\n");
 
       // Set up Interrupt on Pin Change interrupt vector.  The encoder
       // pins are attached to PCINT7/6/5/4, so we only need to set
