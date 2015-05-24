@@ -3,7 +3,7 @@
 This repository contains the documentation and code for the
 Loki robot.
 
-> ![Side View of Loki][Loki_Side_with_Arm_Out.jpg]
+![Side View of Loki][Loki_Side_with_Arm_Out.jpg]
 
 ## Introduction
 
