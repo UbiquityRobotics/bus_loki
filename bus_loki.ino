@@ -196,12 +196,53 @@ ISR(PCINT0_vect) {
 
 /* ********************************************************************************************
  * UltraSonic Sonar Code
+ *
+ * One part of the code must be extremely fast code used in ISRs to log edge detections
+ *
+ * A second part of the code is used in background to do round robin sonar scans and keep track
+ * of latest good measurements of distance so they can be fetched by interested subsystems.
+ *
+ * Note: The background code could be moved into a separate header and file for the class.
  */
-// Sonar number as silkscreened on Loki board
-#define USONAR_MAX_UNITS  17    
+
+// Some in-memory history of last sample times and readings in meters
+#define USONAR_MAX_UNITS  17    // Sonar number as silkscreened on Loki board
+unsigned long sonarSampleTimes[USONAR_MAX_UNITS];
+float sonarDistancesInMeters[USONAR_MAX_UNITS];
+
+
+// Define a max expected delay time in microseconds.
+// 60000 is about 10 meters
+#define USONAR_ECHO_MAX   60000
+
+// States of sonar sensor acquision
+#define  USONAR_STATE_IDLE              0
+#define  USONAR_STATE_TRIGGERED         1
+#define  USONAR_STATE_POST_SAMPLE_WAIT  2
+#define  USONAR_SAMPLE_SPACING_US       100000
 
 // System dependent clock for getting microseconds as fast as we can do it
 #define SYSTEM_GET_MICROSECONDS    micros()
+
+// Tables to map sonar number to trigger digital line # and echo Axx line
+// If entry is 0, not supported yet as it does not have digital pin #
+// Need a more clever set of code to deal with all the abnormal pins
+const int usonar_unitToTriggerPin[USONAR_MAX_UNITS] = { 0,
+        sonar_trig1_pin, sonar_trig2_pin, sonar_trig3_pin, sonar_trig4_pin, 
+        sonar_trig5_pin, sonar_trig6_pin, sonar_trig7_pin, sonar_trig8_pin, 
+        sonar_trig9_pin, sonar_trig10_pin, sonar_trig11_pin, sonar_trig12_pin, 
+        sonar_trig13_pin, sonar_trig14_pin, sonar_trig15_pin, sonar_trig16_pin };
+
+const int usonar_unitToEchoPin[USONAR_MAX_UNITS] = { 0,
+        sonar_echo1_pin, sonar_echo2_pin, sonar_echo3_pin, sonar_echo4_pin, 
+        sonar_echo5_pin, sonar_echo6_pin, sonar_echo7_pin, sonar_echo8_pin, 
+        sonar_echo9_pin, sonar_echo10_pin, sonar_echo11_pin, sonar_echo12_pin, 
+        sonar_echo13_pin, sonar_echo14_pin, sonar_echo15_pin, sonar_echo16_pin };
+
+// Because we have assored pin issues this table has 0 entries for sonars we will skip
+// when doing background sonar scanning. Zero = skip. We put numbers in for readability
+const int usonar_unitEnableList[USONAR_MAX_UNITS] = { 0,
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16 }; 
 
 // Define the circular queue members and indexes.
 // Remember! this is highly optimized so no fancy classes used here folks!
@@ -219,30 +260,200 @@ ISR(PCINT0_vect) {
 //    Consumer must NEVER try to read the values once consumer has bumped consumer index past
 //
 // Queue Member Descriptions
-//  usonar_EchoEdgeChanges[]  Holds 30 bit timestamp with lower 2 bits showing the bank that changed
+//  usonar_echoEdgeQueue[]    ISR fed queue to hold edge change detections produced in fast ISR.
+//                            Entires are 30 bit timestamp with lower 2 bits showing the bank that changed
 //                            Note that the timestamp will roll over in around 70 min
 //  usonar_EchoChangedPins[]  Not used yet!  Is to hold a 1 for each pin that has changed at this timestamp.
 //                            Bits 23:0 are to be placed properly by each ISR
 //
+
+// The Echo timestamp is saved with the least sig 2 bits being set to the channel for this timestamp
+// We do not know which bits changed, we only know at least one changed in this bank.
+// So this means the sonar cycling needs to be careful to only do one sample at a time from any one bank
 #define  USONAR_QUEUE_LEN    64            // MUST be a power of 2
+unsigned long usonar_echoEdgeQueue[USONAR_QUEUE_LEN];
+
 #define  USONAR_MIN_EMPTIES   2            // minimum space where producer can insert new entry
 unsigned int  usonar_producerIndex = 0;    // Owned by ISRs and only inspected by consumer
 unsigned int  usonar_consumerIndex = 0;    // Owned by consumer and only inspected by producer
 int usonar_queueOverflow = 0;              // Producer can set this and consumer has to be aware. 
 
-// The Echo timestamp is saved with the least sig 2 bits being set to the channel for this timestamp
-// We do not know which bits changed, we only know at least one changed in this bank.
-// So this means the sonar cycling needs to be careful to only do one sample at a time from any one bank
-unsigned long usonar_EchoEdgeChanges[USONAR_QUEUE_LEN];
-
+// 
+// Class to pull together management routines for Loki ultrasonic sensor distance measurements
 //
-// Ultrasonic sonar edge detection Background Processing
+// This is really to make things a little bit more contained but does not stand on it's own
+// This is specific to use of high speed ISR doing acquisition of data
+// so this class must use external fast edge detect queue which is not 'ideal' but is acceptable
+//
+class Loki_USonar {
+  private:
+    int _numSonars;
+
+  public:
+    Loki_USonar() {
+        _numSonars = USONAR_MAX_UNITS;
+    };
+
+
+  // Sonar echo completion Circular Queue interfaces for a background consumer
+
+
+  // A generic circular queue utility to get number of entries in any circular queue
+  int calcQueueLevel(int Pidx, int Cidx, int queueSize) {
+    int queueLevel = 0;
+    if (Pidx >= Cidx) {
+      // Simple case is Cidx follows Pidx OR empty queue they are equal
+      queueLevel = (Pidx - Cidx);  
+    } else {
+      queueLevel = (queueSize - Cidx) + Pidx; 
+    }
+    return queueLevel;
+  };
+
+  //
+  // getQueueLevel() returns number of entries in the circular queue but changes nothing
+  //
+  int getQueueLevel() {
+    int localPI = usonar_producerIndex;		// get atomic copy of producer index
+
+    return calcQueueLevel(localPI, usonar_consumerIndex, USONAR_QUEUE_LEN);
+  };
+
+
+  //
+  // Pull one entry from our edge detection circular queue if there are entries.
+  // A return of 0 will happen if no entries are ready to pull at this time OR the entry is 0
+  //
+  unsigned long pullQueueEntry() {
+    int localPI = usonar_producerIndex;		// get atomic copy of producer index
+    unsigned long queueEntry = 0;
+
+    if (calcQueueLevel(localPI, usonar_consumerIndex, USONAR_QUEUE_LEN) > 0) {
+ 
+      // Find the next index we will bump the consumer index to once done
+      int nextCI = usonar_consumerIndex + 1;
+      if (nextCI >= USONAR_QUEUE_LEN) {
+        nextCI = 0;	// case of roll-around for next entry
+      }
+
+      queueEntry = usonar_echoEdgeQueue[localPI];
+
+      usonar_consumerIndex = nextCI;           // We have consumed so bump consumer index
+    }
+
+    return queueEntry;
+  };
+
+  //
+  // This empties the queue and no members are seen, they just go bye-bye
+  //
+  // We do return how many members were flushed
+  //
+  int flushQueue() {
+    int queueEntries = 0;
+    while (pullQueueEntry() != 0) { queueEntries++; };    // Eat um all up, yum yum.
+    return queueEntries;
+  };
+
+
+  // Get the trigger pin from sonar unit number
+  // Negative return indicates error in the lookup
+  int getTriggerPin(int sonarUnit) {
+    if ((sonarUnit < 1) || (sonarUnit >= _numSonars)) {
+        return -1;
+    }
+    return usonar_unitToTriggerPin[sonarUnit];
+  };
+
+  // Get the echo detect pin from sonar unit number
+  // Negative return indicates error in the lookup OR edge pin not used for this sonar
+  int getEchoDetectPin(int sonarUnit) {
+    if ((sonarUnit < 1) || (sonarUnit >= _numSonars)) {
+        return -1;
+    }
+    return usonar_unitToEchoPin[sonarUnit];
+  };
+
+  int isUnitEnabled(int sonarUnit) {
+    if ((sonarUnit < 1) || (sonarUnit >= _numSonars)) {
+        return -1;
+    }
+    return usonar_unitEnableList[sonarUnit];
+  };
+
+
+  // Trigger the given ultrasonic sonar unit
+  // The sonar unit number is given to this routine as written on PC board
+  // This routine shields the caller from knowing the hardware pin
+  //
+  // Return value is system clock in microseconds for when the trigger was sent
+  // Note that the sonar itself will not reply for up to a few hundred microseconds
+  //
+  unsigned long  trigger(int sonarUnit)
+  {
+    int trigPin = getTriggerPin(sonarUnit);
+    if (trigPin < 0) {
+        return 0;
+    }
+
+    digitalWrite(trigPin, LOW);
+    delayMicroseconds(2);
+    digitalWrite(trigPin, HIGH);
+    delayMicroseconds(10);
+    digitalWrite(trigPin, LOW);
+
+    return SYSTEM_GET_MICROSECONDS | 1;   // set lsb so zero is unique as error code
+  };
+
+  float echoUsToMeters(unsigned long pingDelay) 
+  {
+    return (float)(pingDelay) / 5620.0;  // (delay/2) / 2810   yields one-way distance in meters
+  };
+
+  // Trigger and readback delay from an HC-SR04 Ulrasonic Sonar
+  //
+  // Returns distance in meters
+  //    0.0 = Bad measurement result (unclear fault of sensor)
+  //   -1.0 =  invalid sensor number
+  //   -2.0 =  sensor number is in range but not supported yet
+  //
+  // Note that this routine will not cause our background edge triggering
+  // interrupts as the pulseIn() routine seems to prevent edge interrupts
+  //
+  float inlineReadMeters(int sonarUnit) {
+    float distInMeters = 0.0;
+    unsigned long startTics;
+    int echoPin = getEchoDetectPin(sonarUnit);
+    if (echoPin < 0) {
+        return -2.0;		// sensor number not supported yet for inline read
+    }
+
+    startTics = trigger(sonarUnit);    // Trigger the sonar unit to measure
+    if (startTics == 0) {
+        return -1.0;		// Bad sensor number or not supported yet
+    }
+
+    // Wait on the edge detect to measure pulse width in microseconds
+    unsigned long duration = pulseIn(echoPin, HIGH, USONAR_ECHO_MAX);
+    distInMeters = echoUsToMeters(duration);
+
+    // If we get distance less than spec, return 0 as this can also be a fault
+    if (distInMeters < 0.03) {
+        distInMeters = 0;
+    }
+
+    return distInMeters;
+  };
+
+};
+
+
+
 //
 // Consumer of usonar edge detection measurements and must obey laws of the queue
 //
-unsigned int  usonar_inspectIndex = 0;        // Owned by consumer and unknown to the producer
 void usonar_logMeasurements() {
-    // TODO!  At this time just log a few as they show up.  THIS WILL BREAK ON QUEUE ROLLOVER !!!!
+   // TODO!  At this time just log a few as they show up.  THIS WILL BREAK ON QUEUE ROLLOVER !!!!
     if (usonar_producerIndex > usonar_consumerIndex) {
       if (usonar_consumerIndex > 1) {
         host_uart->print((Text)"Ci: ");
@@ -250,14 +461,16 @@ void usonar_logMeasurements() {
         host_uart->print((Text)" Pi: ");
         host_uart->integer_print(usonar_producerIndex);
         host_uart->print((Text)" Edge: ");
-        host_uart->integer_print((usonar_EchoEdgeChanges[usonar_consumerIndex] - 
-                                  usonar_EchoEdgeChanges[(usonar_consumerIndex - 1)]));
+        host_uart->integer_print((usonar_echoEdgeQueue[usonar_consumerIndex] - 
+                                  usonar_echoEdgeQueue[(usonar_consumerIndex - 1)]));
         host_uart->print((Text)"\r\n");
       }
  
       usonar_consumerIndex += 1;
     }
 }
+
+
 
 // *PCINT1_vect*() is one of two ISRs to gather sonar bounce pulse widths
 //
@@ -288,7 +501,7 @@ ISR(PCINT1_vect) {
 
        // Since timer resolution is about 8us and this clock is usec we will
        // use the LOWER 2 bits to indicate which bank this change is from
-       usonar_EchoEdgeChanges[nextProducerIndex]  = (now & 0xfffffffc) | 1;
+       usonar_echoEdgeQueue[nextProducerIndex]  = (now & 0xfffffffc) | 1;
        usonar_producerIndex = nextProducerIndex;  // Bump producer index to this valid one
    } else {
        usonar_queueOverflow  += 1;
@@ -321,93 +534,11 @@ ISR(PCINT2_vect) {
 
        // Since timer resolution is about 8us and this clock is usec we will
        // use the LOWER 2 bits to indicate which bank this change is from
-       usonar_EchoEdgeChanges[nextProducerIndex]  = (now & 0xfffffffc) | 2;
+       usonar_echoEdgeQueue[nextProducerIndex]  = (now & 0xfffffffc) | 2;
        usonar_producerIndex = nextProducerIndex;  // Bump producer index to this valid one
    } else {
        usonar_queueOverflow  += 1;
    }
-}
-
-// Utilities to read distance from ultrasonic sonar unit
-//
-
-// Tables to map sonar number to trigger digital line # and echo Axx line
-// If entry is 0, not supported yet as it does not have digital pin #
-// Need a more clever set of code to deal with all the abnormal pins
-
-int usonar_unitToTriggerPin[USONAR_MAX_UNITS] = { 0,
-        sonar_trig1_pin, sonar_trig2_pin, sonar_trig3_pin, sonar_trig4_pin, 
-        sonar_trig5_pin, sonar_trig6_pin, sonar_trig7_pin, sonar_trig8_pin, 
-        sonar_trig9_pin, sonar_trig10_pin, sonar_trig11_pin, sonar_trig12_pin, 
-        sonar_trig13_pin, sonar_trig14_pin, sonar_trig15_pin, sonar_trig16_pin };
-
-int usonar_unitToEchoPin[USONAR_MAX_UNITS] = { 0,
-        sonar_echo1_pin, sonar_echo2_pin, sonar_echo3_pin, sonar_echo4_pin, 
-        sonar_echo5_pin, sonar_echo6_pin, sonar_echo7_pin, sonar_echo8_pin, 
-        sonar_echo9_pin, sonar_echo10_pin, sonar_echo11_pin, sonar_echo12_pin, 
-        sonar_echo13_pin, sonar_echo14_pin, sonar_echo15_pin, sonar_echo16_pin };
-
-// Trigger the given ultrasonic sonar unit
-// The sonar units are 1 - 16 and that is the value to enter.
-// This routine shields the caller from knowing the hardware pin
-//
-// Return value is system clock in microseconds for when the trigger was sent
-// Note that the sonar itself will not reply for a few hundred microseconds
-//
-unsigned long  usonar_trigger(int sonarNumber)
-{
-    if ((sonarNumber < 1) || (sonarNumber >= USONAR_MAX_UNITS)) {
-        return 0;
-    }
-
-    int trigPin = usonar_unitToTriggerPin[sonarNumber];
-
-    digitalWrite(trigPin, LOW);
-    delayMicroseconds(2);
-    digitalWrite(trigPin, HIGH);
-    delayMicroseconds(10);
-    digitalWrite(trigPin, LOW);
-
-    return SYSTEM_GET_MICROSECONDS | 1;   // set lsb so zero is unique as error code
-}
-
-float usonar_microsecToMeters(unsigned long pingDelay) 
-{
-    return (float)(pingDelay) / 5820.0;
-}
-
-// Trigger and readback delay from an HC-SR04 Ulrasonic Sonar
-//
-// Returns distance in meters
-//    0.0 = Bad measurement result (unclear fault of sensor)
-//   -1.0 =  invalid sensor number
-//   -2.0 =  sensor number is in range but not supported yet
-//
-// Note that this routine will not cause our background edge triggering
-// interrupts as the pulseIn() routine seems to prevent edge interrupts
-//
-float usonar_inlineReadMeters(int sonarNumber) {
-    float distInMeters = 0.0;
-    unsigned long startTics;
-
-    startTics = usonar_trigger(sonarNumber);    // Trigger the sonar unit to measure
-    if (startTics == 0) {
-        return -1.0;		// Bad sensor number 
-    }
-    int echoPin = usonar_unitToEchoPin[sonarNumber];
-    if (echoPin == 0) {
-        return -2.0;		// sensor number not supported yet
-    }
-
-    unsigned long duration = pulseIn(echoPin, HIGH, 90000);
-    distInMeters = usonar_microsecToMeters(duration);
-
-    // If we get distance less than spec, return 0 as this can also be a fault
-    if (distInMeters < 0.03) {
-        distInMeters = 0;
-    }
-
-    return distInMeters;
 }
 
 
@@ -416,9 +547,40 @@ float usonar_inlineReadMeters(int sonarNumber) {
 */
 
 
+// Setup instance of class for Loki Ultrasonic Sensor support
+Loki_USonar usonar;
+int  currentSonarNumber;
+int  usonarSampleState;
+unsigned long sonarTriggerTime;
+unsigned long currentDelayData1;
+unsigned long currentDelayData2;
+
+// HACK!!!!  Calls accessable using extern for backdoors to query read sensor distances
+// An external access hack so we can fetch sonar values from bus_server
+int usonar_getLastDistInMm(int sonarUnit) {
+    if ((sonarUnit < 1) || (sonarUnit >= USONAR_MAX_UNITS)) {
+        return -10;
+    }
+    return (int)(sonarDistancesInMeters[sonarUnit] * (float)1000.0);
+}
+float usonar_inlineReadMeters(int sonarUnit) {
+  return usonar.inlineReadMeters(sonarUnit);
+}
+
 
 // The *setup*() routine runs once when you press reset:
 void setup() {
+
+  usonarSampleState = USONAR_STATE_IDLE;
+  currentSonarNumber = 0;
+  sonarTriggerTime = 0;
+  currentDelayData1 = (unsigned long)0;
+  currentDelayData2 = (unsigned long)0;
+  for (int ix = 0; ix < USONAR_MAX_UNITS; ix++) {
+    sonarDistancesInMeters[ix] = (float)(0.0);
+    sonarSampleTimes[ix] = (unsigned long)0;
+  }
+
   // Initialize pin directions:
   pinMode(encoder_l1_pin, INPUT);
   pinMode(encoder_l2_pin, INPUT);
@@ -492,7 +654,7 @@ void setup() {
       // Units:    9       10       11       12    13,14   15,16
       // ChipPin: 69       68       67       66       65      64
       // PCINT:   15       14       13       12       11      10
-      PCMSK1 =  _BV(7) |         _BV(5) | _BV(4) | _BV(3)         ;
+      PCMSK1 =  _BV(7) |         _BV(5) | _BV(4) | _BV(3) | _BV(2) ;
       PCICR |= _BV(1);
 
       // Set up for interrupts on Bank 2 pin changes or pins 23:16
@@ -501,8 +663,7 @@ void setup() {
       // ChipPin: 82       83       84       85       86       87      88       89
       // PCINT:   23       22       21       20       19       18      17       16
       // PCMSK2 = _BV(7) | _BV(6) | _BV(5) | _BV(4) | _BV(3) | _BV(2)| _BV(1) | _BV(0);
-      PCMSK2 = _BV(7) | _BV(6) | _BV(5) | _BV(4) | _BV(3) | _BV(2)                 ;
-      //PCMSK2 =                                     _BV(3) | _BV(2)                 ;
+      PCMSK2 = _BV(7) | _BV(6) | _BV(5) | _BV(4) | _BV(3) | _BV(2)          | _BV(0);
       PCICR |= _BV(2);
 
 
@@ -519,6 +680,7 @@ char led_counter = 0;
 
 // The *loop*() routine runs over and over again forever:
 void loop() {
+
   switch (BUS_LOKI_PROGRAM) {
     case BUS_LOKI_PROGRAM_BLINK: {
       int led_pin = led7_pin;
@@ -656,12 +818,104 @@ void loop() {
 	encoder1_state = (unsigned char)(state_transition & 0x7);
       }
 
-      // Deal with ultrasonic sonar completions
-      // Not ready for prime time but getting real close ...  20150523  mjstn usonar_logMeasurements();
+      // Deal with sampling ultrasonic sensors
+      switch (usonarSampleState) {
+        case USONAR_STATE_IDLE:
+          currentDelayData1 = 0;      // Reset the sample gathering values for this run
+          currentDelayData2 = 0;
 
+          currentSonarNumber += 1;
+          if (currentSonarNumber > USONAR_MAX_UNITS) {
+            currentSonarNumber = 1;
+          }
+
+          // After validating unit will work we trigger it
+          if ((usonar.getTriggerPin(currentSonarNumber) <= 0) ||
+              (usonar.isUnitEnabled(currentSonarNumber) == 0)) {
+            // This unit will not work so just skip it and do next on on next pass
+            break;
+          }
+
+          //host_uart->print((Text)" Sonar Sample Start:: ");
+          //host_uart->integer_print(currentSonarNumber);
+          //host_uart->print((Text)"\r\n");
+
+          sonarTriggerTime = usonar.trigger(currentSonarNumber);
+          if (sonarTriggerTime == 0) {
+            // this sonar is not supported
+            break;
+          }
+          usonarSampleState = USONAR_STATE_TRIGGERED;
+          break;
+
+        case USONAR_STATE_TRIGGERED:
+          unsigned long sampleTime;
+          unsigned long rightNow;
+          rightNow = SYSTEM_GET_MICROSECONDS;
+
+          sampleTime = rightNow - sonarTriggerTime; 
+
+          // For clock rollover OR it has taken too long just skip this one
+          if (sampleTime > USONAR_ECHO_MAX) {   // Unsigned math so we can get HUGE number
+            usonar.flushQueue();
+            usonarSampleState = USONAR_STATE_IDLE;
+
+          } else if (currentDelayData1 == 0) {
+            currentDelayData1 = usonar.pullQueueEntry();    // pull entry OR we get 0 if none yet
+
+          } else if (currentDelayData2 == 0) {
+            currentDelayData2 = usonar.pullQueueEntry();    // pull entry OR we get 0 if none yet
+
+          } else {
+            // We have two entries 
+            if (currentDelayData1 > currentDelayData2) {
+              // This is another form of rollover so abort this sample run
+              usonar.flushQueue();
+              usonarSampleState = USONAR_STATE_POST_SAMPLE_WAIT;
+              host_uart->print((Text)" Sonar Too Long: ");
+              host_uart->integer_print(currentSonarNumber);
+              host_uart->print((Text)"\r\n");
+            } else {
+              // Save our sample delay AND save our time we acquired the sample
+              unsigned long echoPulseWidth = currentDelayData2 - currentDelayData1;
+              float distanceInMeters = usonar.echoUsToMeters(echoPulseWidth);
+              sonarSampleTimes[currentSonarNumber] = currentDelayData2;
+              sonarDistancesInMeters[currentSonarNumber] = distanceInMeters;
+
+              usonarSampleState = USONAR_STATE_POST_SAMPLE_WAIT;
+
+              //host_uart->print((Text)" S: ");
+              //host_uart->integer_print(currentSonarNumber);
+              //host_uart->print((Text)" D: ");
+              //host_uart->integer_print((int)(distanceInMeters*(float)(100.0)));
+              //host_uart->print((Text)"\r\n");
+            }
+          }
+          break;
+
+        case USONAR_STATE_POST_SAMPLE_WAIT:
+          // We have included a deadtime so we don't totaly hammer the ultrasound 
+          // this will then not drive dogs 'too' crazy
+          unsigned long waitTimer;
+          unsigned long curTicks;
+          curTicks = SYSTEM_GET_MICROSECONDS;
+
+          waitTimer = curTicks - sonarTriggerTime; 
+
+          if (waitTimer > USONAR_SAMPLE_SPACING_US) {   // Unsigned math so we can get HUGE number
+            usonarSampleState = USONAR_STATE_IDLE;
+          }
+          break;
+
+        default:
+              usonarSampleState = USONAR_STATE_IDLE;
+        break;
+      }
+      
       bridge.loop(TEST);
       break;
-    }
+    } // End case BUS_LOKI_PROGRAM_RAB
+
   }
 }
 
