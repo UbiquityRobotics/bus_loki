@@ -1,6 +1,49 @@
 # bus_loki
 
-bus_loki is the code for the Loki robot.
+This repository contains the documentation and code for the
+Loki robot.
+
+> ![Side View of Loki][Loki_Side_with_Arm_Out.jpg]
+
+## Introduction
+
+Loki is a small robot that is intended to be a used to learn
+how to use ROS (Robot Operating System.)  ROS runs on a
+Raspberry Pi 2 computer board and it plugs into the Loki
+printed circuit board to access 2 motors with drive electronics
+and wheel encoders, 16 sonars, a 5 mega pixel camera,
+a 4 degree of freedom Arm, and a 6000mAH battery.
+Using a USB Wireless dongle, software is developed on a
+laptop/desktop system and downloaded into the Raspberry Pi 2
+processor board.
+
+## Specifications:
+
+* Runs ROS (Robot Operating System) on a Raspberry Pi 2 computer.
+
+* Dimensions: 250mm (L) x 110mm (W) x ~200mm (H)
+
+* Battery: 6000mAH Lithium-Ion Battery Pack
+
+* Sonars: 16 HC-SR04 sonars
+
+* Motors: 2 Micro Metal Gearmotors 298:1 Gear Redution
+
+* Wheels: 70mm (D) x 8mm (W)
+
+* Encoders: 16.26 ticks/mm
+
+* Speed: 1 M/Sec
+
+* Embedded Processor: 20MHz @ 5V Atmel ATmega2560 (Arduino Mega compatible)
+
+* Arm: 4 degree of freedom Me Arm 0.4 
+
+* LED's: 8 
+
+* Expansion: 2x5 .1in Expansion Bus Connector
+
+* Camera: Upward pointing Raspberry Pi Camera (2592 x 1944 pixels)
 
 ## Installing the Arduino-Makefile Development Environment
 
