@@ -17,6 +17,20 @@
 // Make sure we are using the ROS Arduino Bridge as configured for LOKI:
 #define TEST TEST_RAB_LOKI
 
+
+// Setup control for debug printouts that we can manage as a remote command
+// These are binary bits in a flag word that can be viewed from other modules
+static int system_debug_flags = 
+           DBG_FLAG_MOTOR_SETTINGS | DBG_FLAG_UART_SETUP |
+           DBG_FLAG_PARAMETER_SETUP;
+
+int system_debug_flags_get() {
+  return system_debug_flags;
+}
+void system_debug_flags_set(int flags) {
+  system_debug_flags = flags;
+}
+
 class Loki_Motor_Encoder : Bus_Motor_Encoder {
  public:
   Loki_Motor_Encoder(UByte input1_pin, UByte input2_pin,
@@ -827,6 +841,16 @@ void loop() {
           currentSonarNumber += 1;
           if (currentSonarNumber > USONAR_MAX_UNITS) {
             currentSonarNumber = 1;
+            if (system_debug_flags_get() & DBG_FLAG_USENSOR_SCANS) {
+               int distInMm;
+               host_uart->print((Text)" Sonars: ");
+               for (int unit = 1; unit <= 16 ; unit++) {
+                  distInMm = usonar_getLastDistInMm(unit);
+                  host_uart->integer_print((int)distInMm);
+                  host_uart->string_print((Text)" ");
+               }
+               host_uart->string_print((Text)"\r\n");
+            }
           }
 
           // After validating unit will work we trigger it
