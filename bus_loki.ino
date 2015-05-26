@@ -20,9 +20,8 @@
 
 // Setup control for debug printouts that we can manage as a remote command
 // These are binary bits in a flag word that can be viewed from other modules
-static int system_debug_flags = 
-           DBG_FLAG_MOTOR_SETTINGS | DBG_FLAG_UART_SETUP |
-           DBG_FLAG_PARAMETER_SETUP;
+static int system_debug_flags = DBG_FLAG_UART_SETUP | DBG_FLAG_PARAMETER_SETUP;
+
 
 int system_debug_flags_get() {
   return system_debug_flags;
@@ -122,7 +121,7 @@ static const int motor2_input1_pin = 5;
 static const int motor2_input2_pin = 3;
 static const int motor2_enable_pin = 2;
 
-// for sonar pins also see the usonar_ tables we use to lookup
+// for sonar pins also see the usonar tables we use to lookup
 static const int sonar_echo1_pin  = A15;	// IC Pin 82
 static const int sonar_echo2_pin  = A14;	// IC Pin 83
 static const int sonar_echo3_pin  = A13;	// IC Pin 84
@@ -220,20 +219,28 @@ ISR(PCINT0_vect) {
  */
 
 // Some in-memory history of last sample times and readings in meters
-#define USONAR_MAX_UNITS  17    // Sonar number as silkscreened on Loki board
+#define USONAR_MAX_UNITS    17    // Sonar number as silkscreened on Loki board
 unsigned long sonarSampleTimes[USONAR_MAX_UNITS];
 float sonarDistancesInMeters[USONAR_MAX_UNITS];
 
 
 // Define a max expected delay time in microseconds.
-// 60000 is about 10 meters
-#define USONAR_ECHO_MAX   60000
+// 30000 is about 5 meters
+#define USONAR_ECHO_MAX       ((long)(28100))   // Longest echo time we expect (28100 is 5  meters)
+#define USONAR_MEAS_TIME      ((long)(80000))   // Time to wait per measurement
+#define USONAR_MEAS_TOOLONG   ((long)(70000))   // Meas delay too long
+#define USONAR_SAMPLES_US    ((long)(200000))   // One measurement each time this many uSec goes by
+#define USONAR_ECHO_ERR1     ((long)(1*282))  
+#define USONAR_ECHO_ERR2     ((long)(2*282)) 
+#define USONAR_ECHO_ERR3     ((long)(3*282)) 
+#define USONAR_ECHO_ERR4     ((long)(4*282)) 
+#define USONAR_US_TO_METERS  ((float)(5620.0))  // Standard air nominal uSec delay for 2-way bounce time
+#define USONAR_MAX_DIST_CM        900.0      // a cap used in reading well after meas has finished
 
 // States of sonar sensor acquision
-#define  USONAR_STATE_IDLE              0
-#define  USONAR_STATE_TRIGGERED         1
-#define  USONAR_STATE_POST_SAMPLE_WAIT  2
-#define  USONAR_SAMPLE_SPACING_US       100000
+#define  USONAR_STATE_IDLE               0
+#define  USONAR_STATE_WAIT_FOR_MEAS      1
+#define  USONAR_STATE_POST_SAMPLE_WAIT   2
 
 // System dependent clock for getting microseconds as fast as we can do it
 #define SYSTEM_GET_MICROSECONDS    micros()
@@ -284,7 +291,7 @@ const int usonar_unitEnableList[USONAR_MAX_UNITS] = { 0,
 // The Echo timestamp is saved with the least sig 2 bits being set to the channel for this timestamp
 // We do not know which bits changed, we only know at least one changed in this bank.
 // So this means the sonar cycling needs to be careful to only do one sample at a time from any one bank
-#define  USONAR_QUEUE_LEN    64            // MUST be a power of 2
+#define  USONAR_QUEUE_LEN     8             // MUST be a power of 2
 unsigned long usonar_echoEdgeQueue[USONAR_QUEUE_LEN];
 
 #define  USONAR_MIN_EMPTIES   2            // minimum space where producer can insert new entry
@@ -319,7 +326,7 @@ class Loki_USonar {
       // Simple case is Cidx follows Pidx OR empty queue they are equal
       queueLevel = (Pidx - Cidx);  
     } else {
-      queueLevel = (queueSize - Cidx) + Pidx; 
+      queueLevel = (queueSize - Cidx) + Pidx + 1; 
     }
     return queueLevel;
   };
@@ -344,13 +351,13 @@ class Loki_USonar {
 
     if (calcQueueLevel(localPI, usonar_consumerIndex, USONAR_QUEUE_LEN) > 0) {
  
+      queueEntry = usonar_echoEdgeQueue[usonar_consumerIndex];
+
       // Find the next index we will bump the consumer index to once done
       int nextCI = usonar_consumerIndex + 1;
       if (nextCI >= USONAR_QUEUE_LEN) {
         nextCI = 0;	// case of roll-around for next entry
       }
-
-      queueEntry = usonar_echoEdgeQueue[localPI];
 
       usonar_consumerIndex = nextCI;           // We have consumed so bump consumer index
     }
@@ -421,7 +428,9 @@ class Loki_USonar {
 
   float echoUsToMeters(unsigned long pingDelay) 
   {
-    return (float)(pingDelay) / 5620.0;  // (delay/2) / 2810   yields one-way distance in meters
+    float  meters;
+    meters = (float)(pingDelay) / USONAR_US_TO_METERS;
+    return meters;
   };
 
   // Trigger and readback delay from an HC-SR04 Ulrasonic Sonar
@@ -491,6 +500,10 @@ void usonar_logMeasurements() {
 // This ISR processes pin changes for Bank 1 which is for PCINT pins 15:8
 // This ISR must be LIGHTNING FAST and is bare bones petal-to-the-metal processing!
 //
+// Pidx = Cidx when queue is empty.  Consumer sees this as empy. Pi can stuff away
+// Pidx = Index that will next be filled by producer IF there was space
+// Cidx = Index that will be read next time around IF Pidx != Cidx
+//
 // Pin Change Processing:
 // This ISR will take in which pins had changes on one bank of pins
 // and then push those changes with an associated timestamp in echoQueue[]
@@ -499,15 +512,17 @@ void usonar_logMeasurements() {
 ISR(PCINT1_vect) {
    unsigned long now = SYSTEM_GET_MICROSECONDS; 	// Get clock FAST as we can
 
-   int empties = 0;
+   int unused = 0;
+   int inuse  = 0;
    // Ensure there is room in the queue even if we have rollover
-   if (usonar_consumerIndex < usonar_producerIndex) {
-      empties = usonar_producerIndex = usonar_consumerIndex;
+   if (usonar_consumerIndex <= usonar_producerIndex) {
+      inuse = usonar_producerIndex - usonar_consumerIndex;
    } else {
-      empties = (USONAR_QUEUE_LEN - usonar_producerIndex) + usonar_consumerIndex;
+      inuse = (USONAR_QUEUE_LEN - usonar_consumerIndex) + usonar_producerIndex + 1;
    }
+   unused = USONAR_QUEUE_LEN - inuse;
 
-   if (empties >= USONAR_MIN_EMPTIES) {
+   if (unused > 0) {
        // We can produce this entry into the queue and bump producer index
        unsigned int nextProducerIndex = usonar_producerIndex + 1;
        if (nextProducerIndex >= USONAR_QUEUE_LEN) 
@@ -515,7 +530,7 @@ ISR(PCINT1_vect) {
 
        // Since timer resolution is about 8us and this clock is usec we will
        // use the LOWER 2 bits to indicate which bank this change is from
-       usonar_echoEdgeQueue[nextProducerIndex]  = (now & 0xfffffffc) | 1;
+       usonar_echoEdgeQueue[usonar_producerIndex]  = (now & 0xfffffffc) | 1;
        usonar_producerIndex = nextProducerIndex;  // Bump producer index to this valid one
    } else {
        usonar_queueOverflow  += 1;
@@ -532,15 +547,17 @@ ISR(PCINT1_vect) {
 ISR(PCINT2_vect) {
    unsigned long now = SYSTEM_GET_MICROSECONDS; 	// Get clock FAST as we can
 
-   int empties = 0;
+   int unused = 0;
+   int inuse  = 0;
    // Ensure there is room in the queue even if we have rollover
-   if (usonar_consumerIndex < usonar_producerIndex) {
-      empties = usonar_producerIndex = usonar_consumerIndex;
+   if (usonar_consumerIndex <= usonar_producerIndex) {
+      inuse = usonar_producerIndex - usonar_consumerIndex;
    } else {
-      empties = (USONAR_QUEUE_LEN - usonar_producerIndex) + usonar_consumerIndex;
+      inuse = (USONAR_QUEUE_LEN - usonar_consumerIndex) + usonar_producerIndex + 1;
    }
+   unused = USONAR_QUEUE_LEN - inuse;
 
-   if (empties >= USONAR_MIN_EMPTIES) {
+   if (unused >= USONAR_MIN_EMPTIES) {
        // We can produce this entry into the queue and bump producer index
        unsigned int nextProducerIndex = usonar_producerIndex + 1;
        if (nextProducerIndex >= USONAR_QUEUE_LEN) 
@@ -548,7 +565,7 @@ ISR(PCINT2_vect) {
 
        // Since timer resolution is about 8us and this clock is usec we will
        // use the LOWER 2 bits to indicate which bank this change is from
-       usonar_echoEdgeQueue[nextProducerIndex]  = (now & 0xfffffffc) | 2;
+       usonar_echoEdgeQueue[usonar_producerIndex]  = (now & 0xfffffffc) | 2;
        usonar_producerIndex = nextProducerIndex;  // Bump producer index to this valid one
    } else {
        usonar_queueOverflow  += 1;
@@ -562,12 +579,12 @@ ISR(PCINT2_vect) {
 
 
 // Setup instance of class for Loki Ultrasonic Sensor support
-Loki_USonar usonar;
-int  currentSonarNumber;
-int  usonarSampleState;
-unsigned long sonarTriggerTime;
-unsigned long currentDelayData1;
-unsigned long currentDelayData2;
+static Loki_USonar usonar;
+static int  currentSonarNumber;
+static int  usonarSampleState;
+static unsigned long sonarMeasTriggerTime;
+static unsigned long currentDelayData1;
+static unsigned long currentDelayData2;
 
 // HACK!!!!  Calls accessable using extern for backdoors to query read sensor distances
 // An external access hack so we can fetch sonar values from bus_server
@@ -587,9 +604,11 @@ void setup() {
 
   usonarSampleState = USONAR_STATE_IDLE;
   currentSonarNumber = 0;
-  sonarTriggerTime = 0;
+  sonarMeasTriggerTime = 0;
   currentDelayData1 = (unsigned long)0;
   currentDelayData2 = (unsigned long)0;
+  usonar_producerIndex = 0;
+  usonar_consumerIndex = 0;
   for (int ix = 0; ix < USONAR_MAX_UNITS; ix++) {
     sonarDistancesInMeters[ix] = (float)(0.0);
     sonarSampleTimes[ix] = (unsigned long)0;
@@ -834,19 +853,33 @@ void loop() {
 
       // Deal with sampling ultrasonic sensors
       switch (usonarSampleState) {
-        case USONAR_STATE_IDLE:
-          currentDelayData1 = 0;      // Reset the sample gathering values for this run
-          currentDelayData2 = 0;
+        case USONAR_STATE_IDLE: {
+          int queueLevel = 0;
+          queueLevel = usonar.getQueueLevel();  // In our scheme we expect this to always be 0
+          if ((queueLevel != 0) && (system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG)) {
+            host_uart->print((Text)" Sonar WARNING: edge queue not empty at start. ");
+            host_uart->integer_print(queueLevel);
+            host_uart->print((Text)" edges! \r\n");
+            usonar.flushQueue();
+            currentDelayData1 = 0;                // Reset the sample gathering values for this run
+            currentDelayData2 = 0;
+          }
 
           currentSonarNumber += 1;
           if (currentSonarNumber > USONAR_MAX_UNITS) {
             currentSonarNumber = 1;
-            if (system_debug_flags_get() & DBG_FLAG_USENSOR_SCANS) {
-               int distInMm;
+            if (system_debug_flags_get() & DBG_FLAG_USENSOR_RESULTS) {
+               char  outBuf[32];
+               float distInCm;
                host_uart->print((Text)" Sonars: ");
-               for (int unit = 1; unit <= 16 ; unit++) {
-                  distInMm = usonar_getLastDistInMm(unit);
-                  host_uart->integer_print((int)distInMm);
+               for (int sonarUnit = 1; sonarUnit < USONAR_MAX_UNITS ; sonarUnit++) {
+                  distInCm = (float)(usonar_getLastDistInMm(sonarUnit))/(float)(10.0);
+                  if (distInCm > USONAR_MAX_DIST_CM) {
+                    distInCm = USONAR_MAX_DIST_CM;      // graceful hard cap
+                  }
+                  
+                  dtostrf(distInCm, 3, 1, outBuf);
+                  host_uart->string_print((Text)outBuf);
                   host_uart->string_print((Text)" ");
                }
                host_uart->string_print((Text)"\r\n");
@@ -860,74 +893,187 @@ void loop() {
             break;
           }
 
-          //host_uart->print((Text)" Sonar Sample Start:: ");
-          //host_uart->integer_print(currentSonarNumber);
-          //host_uart->print((Text)"\r\n");
+          // Start the trigger for this sensor and enable interrupts
+          // Enable global interrupts by setting the I bit (7th bit) in the status register:
+          usonar_producerIndex = 0;    // !!!BUG HACK_FIX!!!  FIXME!!! 
+          usonar_consumerIndex = 0;    // !!!BUG HACK_FIX!!!  FIXME!!!
+          // SREG |= _BV(7);
+          sonarMeasTriggerTime = usonar.trigger(currentSonarNumber);
 
-          sonarTriggerTime = usonar.trigger(currentSonarNumber);
-          if (sonarTriggerTime == 0) {
-            // this sonar is not supported
-            break;
+          if (system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
+            char longStr[32];
+            ltoa(sonarMeasTriggerTime, longStr,10);
+            host_uart->string_print((Text)" Sonar start Sample: ");
+            host_uart->integer_print(currentSonarNumber);
+            host_uart->string_print((Text)" at ");
+            host_uart->string_print((Text)longStr);
+            host_uart->string_print((Text)"us\r\n");
           }
-          usonarSampleState = USONAR_STATE_TRIGGERED;
+
+          usonarSampleState = USONAR_STATE_WAIT_FOR_MEAS;
+          }
           break;
 
-        case USONAR_STATE_TRIGGERED:
-          unsigned long sampleTime;
+        case USONAR_STATE_WAIT_FOR_MEAS: {
+          // wait max time to ensure both edges get seen then sample for edges
+          unsigned long measCycleTime;    // Time so far waiting for this measurement
           unsigned long rightNow;
+
           rightNow = SYSTEM_GET_MICROSECONDS;
 
-          sampleTime = rightNow - sonarTriggerTime; 
-
-          // For clock rollover OR it has taken too long just skip this one
-          if (sampleTime > USONAR_ECHO_MAX) {   // Unsigned math so we can get HUGE number
-            usonar.flushQueue();
+          // Look for counter to go 'around' and ignore this one. 
+          // Unsigned math so we can get HUGE number
+          if (sonarMeasTriggerTime > rightNow) {
+            if (system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
+              host_uart->print((Text)" Sonar system tic rollover in meas wait. \r\n");
+            }
             usonarSampleState = USONAR_STATE_IDLE;
+            break;
+          }
 
-          } else if (currentDelayData1 == 0) {
-            currentDelayData1 = usonar.pullQueueEntry();    // pull entry OR we get 0 if none yet
+          measCycleTime = rightNow - sonarMeasTriggerTime; 
 
-          } else if (currentDelayData2 == 0) {
-            currentDelayData2 = usonar.pullQueueEntry();    // pull entry OR we get 0 if none yet
+          // If meas timer not done break on through till next pass
+          if (measCycleTime < USONAR_MEAS_TIME)     {   
+            break;     // Still waiting for measurement
+          }
+
+          // OK we think we have measurement data so check for and get edge data
+          if (system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
+            char longStr[32];
+            host_uart->string_print((Text)" Sonar meas from: ");
+            ltoa(sonarMeasTriggerTime, longStr,10);
+            host_uart->string_print((Text)longStr);
+            host_uart->string_print((Text)"us to: ");
+            ltoa(rightNow, longStr,10);
+            host_uart->string_print((Text)longStr);
+            host_uart->string_print((Text)"us\r\n");
+          }
+
+          int edgeCount = usonar.getQueueLevel();
+          if (edgeCount != 2) {
+            // We expect exactly two edges.  If not we abort this meas cycle
+            if (system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
+              host_uart->print((Text)" Sonar ERROR! meas saw ");
+              host_uart->integer_print(edgeCount);
+              host_uart->print((Text)" edges! \r\n");
+              // special value as error type indicator but as things mature we should NOT stuff this
+              sonarDistancesInMeters[currentSonarNumber] = 
+              usonar.echoUsToMeters((USONAR_ECHO_MAX + USONAR_ECHO_ERR1));
+            }
+
+            usonarSampleState = USONAR_STATE_POST_SAMPLE_WAIT;   // move on to next sample cycle
+
+            break;   // break to wait till next pass and do next sensor
+          }
+
+          // So lets (FINALLY) get the two edge samples
+          unsigned long echoPulseWidth;    // Time between edges
+          currentDelayData1 = usonar.pullQueueEntry();    // pull entry OR we get 0 if none yet
+          currentDelayData2 = usonar.pullQueueEntry();    // pull entry OR we get 0 if none yet
+
+          echoPulseWidth =  currentDelayData2 - currentDelayData1; // The 'real' meas data in uSec
+
+          if (system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
+            char longStr[32];
+            host_uart->string_print((Text)" Sonar edges from: ");
+            ltoa(currentDelayData1, longStr,10);
+            host_uart->string_print((Text)longStr);
+            host_uart->string_print((Text)"us to: ");
+            ltoa(currentDelayData2, longStr,10);
+            host_uart->string_print((Text)longStr);
+            host_uart->string_print((Text)"us \r\n");
+          }
+
+          if (currentDelayData1 > currentDelayData2) {
+            // This is another form of rollover every 70 minutes or so but just 
+            if (system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
+              host_uart->print((Text)" Sonar sys tic rollover OR edges reversed\r\n");
+              // special value as error type indicator but as things mature we should NOT stuff this
+              sonarDistancesInMeters[currentSonarNumber] = 
+                usonar.echoUsToMeters((unsigned long)USONAR_ECHO_MAX + (unsigned long)USONAR_ECHO_ERR2);
+            }
+
+            usonarSampleState = USONAR_STATE_POST_SAMPLE_WAIT;   // move on to next sample cycle
+
+          //} else if (echoPulseWidth > USONAR_MEAS_TOOLONG) {  
+          //  if (system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
+          //    host_uart->print((Text)" Sonar meas result over the MAX\r\n");
+          //  }
+
+          //  // special value as error type indicator but as things mature we should NOT stuff this
+          //  sonarDistancesInMeters[currentSonarNumber] = 
+          //    usonar.echoUsToMeters((USONAR_ECHO_MAX + USONAR_ECHO_ERR3));
+          //  usonarSampleState = USONAR_STATE_POST_SAMPLE_WAIT;   // move on to next sample cycle
 
           } else {
-            // We have two entries 
-            if (currentDelayData1 > currentDelayData2) {
-              // This is another form of rollover so abort this sample run
-              usonar.flushQueue();
-              usonarSampleState = USONAR_STATE_POST_SAMPLE_WAIT;
-              host_uart->print((Text)" Sonar Too Long: ");
-              host_uart->integer_print(currentSonarNumber);
-              host_uart->print((Text)"\r\n");
-            } else {
               // Save our sample delay AND save our time we acquired the sample
-              unsigned long echoPulseWidth = currentDelayData2 - currentDelayData1;
-              float distanceInMeters = usonar.echoUsToMeters(echoPulseWidth);
+              if (echoPulseWidth > USONAR_ECHO_MAX) {
+               // We are going to cap this as a form of non-expected result so can it
+                if (system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
+                  char longStr[32];
+                  ltoa(echoPulseWidth, longStr,10);
+                  host_uart->print((Text)" Sonar echo delay of ");
+                  host_uart->print((Text)longStr);
+                  host_uart->print((Text)" is over MAX!\r\n");
+                }
+                // We really should ignore this once system is robust
+                // echoPulseWidth = (unsigned long)USONAR_ECHO_MAX + (unsigned long)USONAR_ECHO_ERR4;
+                usonarSampleState = USONAR_STATE_POST_SAMPLE_WAIT;   // move on to next sample cycle
+                break;
+              }
+
+              // THIS IS THE REAL AND DESIRED PLACE WE EXPECT TO BE EACH TIME!
               sonarSampleTimes[currentSonarNumber] = currentDelayData2;
+              float distanceInMeters = usonar.echoUsToMeters(echoPulseWidth);
               sonarDistancesInMeters[currentSonarNumber] = distanceInMeters;
 
+              if (system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
+                char outBuf2[32];
+                float distInCm;
+                int   echoCm;
+                echoCm = echoPulseWidth / 58;
+                distInCm = distanceInMeters * (float)(100.0);
+                dtostrf(distInCm, 6, 1, outBuf2);
+                host_uart->string_print((Text)" S: ");
+                host_uart->integer_print((int)currentSonarNumber);
+                host_uart->string_print((Text)" E: ");
+                host_uart->integer_print((int)echoCm);
+                host_uart->string_print((Text)"cm D: ");
+                host_uart->string_print((Text)outBuf2);
+                host_uart->string_print((Text)"cm \r\n");
+              }
+              }
               usonarSampleState = USONAR_STATE_POST_SAMPLE_WAIT;
-
-              //host_uart->print((Text)" S: ");
-              //host_uart->integer_print(currentSonarNumber);
-              //host_uart->print((Text)" D: ");
-              //host_uart->integer_print((int)(distanceInMeters*(float)(100.0)));
-              //host_uart->print((Text)"\r\n");
             }
-          }
           break;
 
-        case USONAR_STATE_POST_SAMPLE_WAIT:
+        case USONAR_STATE_POST_SAMPLE_WAIT: {
           // We have included a deadtime so we don't totaly hammer the ultrasound 
           // this will then not drive dogs 'too' crazy
           unsigned long waitTimer;
           unsigned long curTicks;
           curTicks = SYSTEM_GET_MICROSECONDS;
 
-          waitTimer = curTicks - sonarTriggerTime; 
+          currentDelayData1 = 0;      // Reset the sample gathering values for this run
+          currentDelayData2 = 0;
 
-          if (waitTimer > USONAR_SAMPLE_SPACING_US) {   // Unsigned math so we can get HUGE number
+          waitTimer = curTicks - sonarMeasTriggerTime; 
+
+          if (sonarMeasTriggerTime > curTicks) {   // Unsigned math so we can get HUGE number
+            if (system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
+              host_uart->print((Text)" Sonar system timer rollover in meas spacing.\r\n");
+            }
             usonarSampleState = USONAR_STATE_IDLE;
+          } else if (waitTimer > USONAR_SAMPLES_US) {   
+            // Ok to move on to the next sonar measurement cycle
+            if (system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
+              host_uart->print((Text)" Sonar Do next meas.\r\n");
+            }
+            usonarSampleState = USONAR_STATE_IDLE;
+          }
+
+          // If we fall through without state change we are still waiting
           }
           break;
 
