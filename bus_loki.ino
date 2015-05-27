@@ -227,9 +227,9 @@ float sonarDistancesInMeters[USONAR_MAX_UNITS];
 // Define a max expected delay time in microseconds.
 // 30000 is about 5 meters
 #define USONAR_ECHO_MAX       ((long)(28100))   // Longest echo time we expect (28100 is 5  meters)
-#define USONAR_MEAS_TIME      ((long)(80000))   // Time to wait per measurement
+#define USONAR_MEAS_TIME     ((long)(100000))   // Time to wait per measurement
 #define USONAR_MEAS_TOOLONG   ((long)(70000))   // Meas delay too long
-#define USONAR_SAMPLES_US    ((long)(200000))   // One measurement each time this many uSec goes by
+#define USONAR_SAMPLES_US    ((long)(150000))   // One measurement each time this many uSec goes by
 #define USONAR_ECHO_ERR1     ((long)(1*282))  
 #define USONAR_ECHO_ERR2     ((long)(2*282)) 
 #define USONAR_ECHO_ERR3     ((long)(3*282)) 
@@ -238,7 +238,7 @@ float sonarDistancesInMeters[USONAR_MAX_UNITS];
 #define USONAR_MAX_DIST_CM        900.0      // a cap used in reading well after meas has finished
 
 // States of sonar sensor acquision
-#define  USONAR_STATE_IDLE               0
+#define  USONAR_STATE_MEAS_START         0
 #define  USONAR_STATE_WAIT_FOR_MEAS      1
 #define  USONAR_STATE_POST_SAMPLE_WAIT   2
 
@@ -248,22 +248,61 @@ float sonarDistancesInMeters[USONAR_MAX_UNITS];
 // Tables to map sonar number to trigger digital line # and echo Axx line
 // If entry is 0, not supported yet as it does not have digital pin #
 // Need a more clever set of code to deal with all the abnormal pins
-const int usonar_unitToTriggerPin[USONAR_MAX_UNITS] = { 0,
-        sonar_trig1_pin, sonar_trig2_pin, sonar_trig3_pin, sonar_trig4_pin, 
-        sonar_trig5_pin, sonar_trig6_pin, sonar_trig7_pin, sonar_trig8_pin, 
-        sonar_trig9_pin, sonar_trig10_pin, sonar_trig11_pin, sonar_trig12_pin, 
-        sonar_trig13_pin, sonar_trig14_pin, sonar_trig15_pin, sonar_trig16_pin };
+typedef struct usonar_meas_spec_t {
+    int measMethod;	// Method to be used for the measurement
+    int trigPin;        // For direct pin this is digital pin number for custom it a routine to use
+    int echoPin;        // The echo pin in terms of arduino pin to use for pulseIn
+    int intRegNum;      // Int reg number for pinint interrupt enable
+    int intBit;         // the bit for enable of interrupts for this pinint
+} Usonar_Meas_Spec;
 
-const int usonar_unitToEchoPin[USONAR_MAX_UNITS] = { 0,
-        sonar_echo1_pin, sonar_echo2_pin, sonar_echo3_pin, sonar_echo4_pin, 
-        sonar_echo5_pin, sonar_echo6_pin, sonar_echo7_pin, sonar_echo8_pin, 
-        sonar_echo9_pin, sonar_echo10_pin, sonar_echo11_pin, sonar_echo12_pin, 
-        sonar_echo13_pin, sonar_echo14_pin, sonar_echo15_pin, sonar_echo16_pin };
+// Because a unit can support either of two methods the measurement method field is a bitmap
+// Custom methods once we support them will add to the 2 well known methods of PIN and PCINT 
+#define US_MEAS_METHOD_NONE    0
+#define US_MEAS_METHOD_PIN     1     // Supports direct pulseIn() method
+#define US_MEAS_METHOD_PCINT   2     // Supports pin change interrupt method
+// Custom modes for trigger start
+// Trigger is Port J bit 7
+#define US_MEAS_METHOD_T01_PG2 (0x010|US_MEAS_METHOD_PIN|US_MEAS_METHOD_PCINT)
+#define US_MEAS_METHOD_T10_PJ7 (0x020|US_MEAS_METHOD_PCINT)
+#define US_MEAS_METHOD_T15_PG4 (0x040|US_MEAS_METHOD_PCINT)
+#define US_MEAS_METHOD_T16_PG3 (0x080|US_MEAS_METHOD_PCINT)
 
-// Because we have assored pin issues this table has 0 entries for sonars we will skip
-// when doing background sonar scanning. Zero = skip. We put numbers in for readability
-const int usonar_unitEnableList[USONAR_MAX_UNITS] = { 0,
-        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16 }; 
+#define US_MEAS_METHOD_PIN_PCINT   (US_MEAS_METHOD_PIN|US_MEAS_METHOD_PCINT)
+
+// Pin change interrupts are involved so we have a little table to help
+// sort them out that must match the hardware.
+// This table was done for Loki Rev C board
+//
+// IntBit: _BV(7)   _BV(6)   _BV(5)   _BV(4)   _BV(3)   _BV(2)  _BV(1)    _BV(0);
+//
+// Sonar:     1        2        3        4        5        6       7        8  
+// ChipPin:  82       83       84       85       86       87      88       89
+// PCINT2:   23       22       21       20       19       18      17       16
+//
+// Sonar:     9       10       11       12    13,14   15,16       --       --
+// ChipPin:  69       68       67       66       65      64       --       --
+// PCINT1:   15       14       13       12       11      10       --       --
+
+//  This table defines the methods that sonar measurements can be taken 
+const Usonar_Meas_Spec  usonar_measSpecs[USONAR_MAX_UNITS] = { {0,0,0,0,0},
+    {US_MEAS_METHOD_T01_PG2,   sonar_trig1_pin,  sonar_echo1_pin,  2,  _BV(7) },
+    {US_MEAS_METHOD_PIN_PCINT, sonar_trig2_pin,  sonar_echo2_pin,  2,  _BV(6) },
+    {US_MEAS_METHOD_PIN_PCINT, sonar_trig3_pin,  sonar_echo3_pin,  2,  _BV(5) },
+    {US_MEAS_METHOD_PIN_PCINT, sonar_trig4_pin,  sonar_echo4_pin,  2,  _BV(4) },
+    {US_MEAS_METHOD_PIN_PCINT, sonar_trig5_pin,  sonar_echo5_pin,  2,  _BV(3) },
+    {US_MEAS_METHOD_PIN_PCINT, sonar_trig6_pin,  sonar_echo6_pin,  2,  _BV(2) },
+    {US_MEAS_METHOD_PIN_PCINT, sonar_trig7_pin,  sonar_echo7_pin,  2,  _BV(1) },
+    {US_MEAS_METHOD_PIN_PCINT, sonar_trig8_pin,  sonar_echo8_pin,  2,  _BV(0) },
+    {US_MEAS_METHOD_PIN_PCINT, sonar_trig9_pin,  sonar_echo9_pin,  1,  _BV(7) },
+    {US_MEAS_METHOD_T10_PJ7,   sonar_trig10_pin, sonar_echo10_pin, 1,  _BV(6) },
+    {US_MEAS_METHOD_PCINT,     sonar_trig11_pin, sonar_echo11_pin, 1,  _BV(5) },
+    {US_MEAS_METHOD_PCINT,     sonar_trig12_pin, sonar_echo12_pin, 1,  _BV(4) },
+    {US_MEAS_METHOD_PCINT,     sonar_trig13_pin, sonar_echo13_pin, 1,  _BV(3) },
+    {US_MEAS_METHOD_PCINT,     sonar_trig14_pin, sonar_echo14_pin, 1,  _BV(3) },
+    {US_MEAS_METHOD_T15_PG4,   sonar_trig15_pin, sonar_echo15_pin, 1,  _BV(2) },
+    {US_MEAS_METHOD_T16_PG3,   sonar_trig16_pin, sonar_echo16_pin, 1,  _BV(2) } 
+};
 
 // Define the circular queue members and indexes.
 // Remember! this is highly optimized so no fancy classes used here folks!
@@ -290,9 +329,11 @@ const int usonar_unitEnableList[USONAR_MAX_UNITS] = { 0,
 
 // The Echo timestamp is saved with the least sig 2 bits being set to the channel for this timestamp
 // We do not know which bits changed, we only know at least one changed in this bank.
+// We also have a word of info to hold other info we may want the ISR to return
 // So this means the sonar cycling needs to be careful to only do one sample at a time from any one bank
 #define  USONAR_QUEUE_LEN     8             // MUST be a power of 2
 unsigned long usonar_echoEdgeQueue[USONAR_QUEUE_LEN];
+unsigned long usonar_echoInfoQueue[USONAR_QUEUE_LEN];
 
 #define  USONAR_MIN_EMPTIES   2            // minimum space where producer can insert new entry
 unsigned int  usonar_producerIndex = 0;    // Owned by ISRs and only inspected by consumer
@@ -378,28 +419,66 @@ class Loki_USonar {
 
 
   // Get the trigger pin from sonar unit number
-  // Negative return indicates error in the lookup
-  int getTriggerPin(int sonarUnit) {
+  //
+  // Negative value indicates unsupported unit number
+  // Zero return 0 indicates this unit does not support trigger line
+  // a custom trigger is required for the measurement method.
+  //
+  int getMeasTriggerPin(int sonarUnit) {
+    int trigPin = 0;
+
     if ((sonarUnit < 1) || (sonarUnit >= _numSonars)) {
         return -1;
     }
-    return usonar_unitToTriggerPin[sonarUnit];
+   
+    // If either of two modes is supported for main modes there is a trigger line
+    if (usonar_measSpecs[sonarUnit].measMethod & US_MEAS_METHOD_PIN_PCINT) {
+        trigPin = usonar_measSpecs[sonarUnit].trigPin;
+    }
+
+    return trigPin;
   };
 
   // Get the echo detect pin from sonar unit number
-  // Negative return indicates error in the lookup OR edge pin not used for this sonar
+  // Echo detect is only used for the inline measurement modes
+  // which only the lower half of the sonars support.
+  //
+  // Negative value indicates unsupported unit number
+  // Zero return indicates this unit does not support the feature
   int getEchoDetectPin(int sonarUnit) {
+    int echoPin = 0;
+
     if ((sonarUnit < 1) || (sonarUnit >= _numSonars)) {
         return -1;
     }
-    return usonar_unitToEchoPin[sonarUnit];
+
+    // We have to have this sonar unit at least support echo pin mode
+    if (usonar_measSpecs[sonarUnit].measMethod & US_MEAS_METHOD_PIN) {
+        echoPin = usonar_measSpecs[sonarUnit].echoPin;
+    }
+
+    return echoPin;
   };
 
+  // Indicate if the sonar unit is supported in any way at all
+  //
+  // Negative value indicates unsupported unit number
+  // Zero return indicates this unit does not support the feature
+  // Non-zero returns the measurement methods and is thus non-zero
   int isUnitEnabled(int sonarUnit) {
+    int enabled = 0;
     if ((sonarUnit < 1) || (sonarUnit >= _numSonars)) {
         return -1;
     }
-    return usonar_unitEnableList[sonarUnit];
+
+    // This may seem 'silly' since NONE is zero but in case it changes
+    // we will explicitly check with the define
+    enabled = usonar_measSpecs[sonarUnit].measMethod;
+    if (enabled == US_MEAS_METHOD_NONE) {
+      enabled = 0;
+    }
+
+    return enabled;
   };
 
 
@@ -410,20 +489,54 @@ class Loki_USonar {
   // Return value is system clock in microseconds for when the trigger was sent
   // Note that the sonar itself will not reply for up to a few hundred microseconds
   //
-  unsigned long  trigger(int sonarUnit)
+  #define  USONAR_TRIG_PRE_LOW_US   4     // Time to hold trig line low b4 start
+  #define  USONAR_TRIG_HIGH_US     20     // Time to hold trigger line high
+
+  unsigned long  measTrigger(int sonarUnit)
   {
-    int trigPin = getTriggerPin(sonarUnit);
-    if (trigPin < 0) {
+    unsigned long triggerTime;
+    triggerTime = SYSTEM_GET_MICROSECONDS | 1;   // set lsb, zero is an error code
+
+    // Trap out custom trigger pin modes (Ugly but necessary)
+    if (usonar_measSpecs[sonarUnit].measMethod == US_MEAS_METHOD_T01_PG2) {
+      PORTG &= 0xfb;
+      delayMicroseconds(USONAR_TRIG_PRE_LOW_US);
+      PORTG |= 0x04;
+      delayMicroseconds(USONAR_TRIG_HIGH_US);
+      PORTG &= 0xfb;
+    } else if (usonar_measSpecs[sonarUnit].measMethod == US_MEAS_METHOD_T10_PJ7) {
+      PORTJ &= 0x7f;
+      delayMicroseconds(USONAR_TRIG_PRE_LOW_US);
+      PORTJ |= 0x80;
+      delayMicroseconds(USONAR_TRIG_HIGH_US);
+      PORTJ &= 0x7f;
+    } else if (usonar_measSpecs[sonarUnit].measMethod == US_MEAS_METHOD_T15_PG4) {
+      PORTG &= 0xef;
+      delayMicroseconds(USONAR_TRIG_PRE_LOW_US);
+      PORTG |= 0x10;
+      delayMicroseconds(USONAR_TRIG_HIGH_US);
+      PORTG &= 0xef;
+    } else if (usonar_measSpecs[sonarUnit].measMethod == US_MEAS_METHOD_T16_PG3) {
+      PORTG &= 0xf7;
+      delayMicroseconds(USONAR_TRIG_PRE_LOW_US);
+      PORTG |= 0x08;
+      delayMicroseconds(USONAR_TRIG_HIGH_US);
+      PORTG &= 0xf7;
+    } else {
+      // Non-custom modes just lookup digital line and do trigger with that
+      int trigPin = getMeasTriggerPin(sonarUnit);
+      if (trigPin == 0) {
         return 0;
+      }
+
+      digitalWrite(trigPin, LOW);
+      delayMicroseconds(USONAR_TRIG_PRE_LOW_US);
+      digitalWrite(trigPin, HIGH);
+      delayMicroseconds(USONAR_TRIG_HIGH_US);
+      digitalWrite(trigPin, LOW);
     }
 
-    digitalWrite(trigPin, LOW);
-    delayMicroseconds(2);
-    digitalWrite(trigPin, HIGH);
-    delayMicroseconds(10);
-    digitalWrite(trigPin, LOW);
-
-    return SYSTEM_GET_MICROSECONDS | 1;   // set lsb so zero is unique as error code
+    return triggerTime;
   };
 
   float echoUsToMeters(unsigned long pingDelay) 
@@ -451,7 +564,7 @@ class Loki_USonar {
         return -2.0;		// sensor number not supported yet for inline read
     }
 
-    startTics = trigger(sonarUnit);    // Trigger the sonar unit to measure
+    startTics = measTrigger(sonarUnit);    // Trigger the sonar unit to measure
     if (startTics == 0) {
         return -1.0;		// Bad sensor number or not supported yet
     }
@@ -469,30 +582,6 @@ class Loki_USonar {
   };
 
 };
-
-
-
-//
-// Consumer of usonar edge detection measurements and must obey laws of the queue
-//
-void usonar_logMeasurements() {
-   // TODO!  At this time just log a few as they show up.  THIS WILL BREAK ON QUEUE ROLLOVER !!!!
-    if (usonar_producerIndex > usonar_consumerIndex) {
-      if (usonar_consumerIndex > 1) {
-        host_uart->print((Text)"Ci: ");
-        host_uart->integer_print(usonar_consumerIndex);
-        host_uart->print((Text)" Pi: ");
-        host_uart->integer_print(usonar_producerIndex);
-        host_uart->print((Text)" Edge: ");
-        host_uart->integer_print((usonar_echoEdgeQueue[usonar_consumerIndex] - 
-                                  usonar_echoEdgeQueue[(usonar_consumerIndex - 1)]));
-        host_uart->print((Text)"\r\n");
-      }
- 
-      usonar_consumerIndex += 1;
-    }
-}
-
 
 
 // *PCINT1_vect*() is one of two ISRs to gather sonar bounce pulse widths
@@ -602,7 +691,7 @@ float usonar_inlineReadMeters(int sonarUnit) {
 // The *setup*() routine runs once when you press reset:
 void setup() {
 
-  usonarSampleState = USONAR_STATE_IDLE;
+  usonarSampleState = USONAR_STATE_MEAS_START;
   currentSonarNumber = 0;
   sonarMeasTriggerTime = 0;
   currentDelayData1 = (unsigned long)0;
@@ -673,29 +762,30 @@ void setup() {
       bridge.setup(TEST);
       //host_uart->print((Text)"Bridge setup done\r\n");
 
+      // Special port bit setups to allow sonar triggering
+      DDRG = 0x1c;     // Sonar 15 and 16 and 1 triggers
+      DDRJ = 0x80;     // Sonar 10 trigger
+
       // Set up Interrupt on Pin Change interrupt vector.  The encoder
       // pins are attached to PCINT7/6/5/4, so we only need to set
       // PCMSK0 to '1111 0000':
       PCMSK0 = _BV(7) | _BV(6) | _BV(5) | _BV(4);
 
-      // Now enable interrup on changes for PCINT7/.../0, by setting
+      // Now enable interrupt on changes for PCINT7/.../0, by setting
       // PCICR to 1.  Thus, PCICR is set to 'xxxx x001' or '0000 0001':
       PCICR = _BV(0);
 
-      // Set up for interrupts on Bank 1 pin changes or pins 15:8
-      // These are used for ultrasonic sonar units mostly in back of Loki
-      // Units:    9       10       11       12    13,14   15,16
-      // ChipPin: 69       68       67       66       65      64
-      // PCINT:   15       14       13       12       11      10
-      PCMSK1 =  _BV(7) |         _BV(5) | _BV(4) | _BV(3) | _BV(2) ;
+      // The Pin Change interrupts are enabled for each bit on Bank 1 
+      // As that pin is used in the measurement sampling code, not here
+      // MJ_FIXME1:  PCMSK1 = 0;
+      PCMSK1 =  _BV(7) | _BV(6) | _BV(5) | _BV(4) | _BV(3) | _BV(2) ;
       PCICR |= _BV(1);
 
       // Set up for interrupts on Bank 2 pin changes or pins 23:16
       // These are used for ultrasonic sonar units mostly in front of Loki
-      // Units:    1        2        3        4        5        6       7        8  
-      // ChipPin: 82       83       84       85       86       87      88       89
-      // PCINT:   23       22       21       20       19       18      17       16
-      // PCMSK2 = _BV(7) | _BV(6) | _BV(5) | _BV(4) | _BV(3) | _BV(2)| _BV(1) | _BV(0);
+      // The Pin Change interrupts are enabled for each bit on Bank 1 
+      // As that pin is used in the measurement sampling code, not here
+      // MJ_FIXME1:  PCMSK2 = 0;
       PCMSK2 = _BV(7) | _BV(6) | _BV(5) | _BV(4) | _BV(3) | _BV(2)          | _BV(0);
       PCICR |= _BV(2);
 
@@ -851,18 +941,29 @@ void loop() {
 	encoder1_state = (unsigned char)(state_transition & 0x7);
       }
 
-      // Deal with sampling ultrasonic sensors
+      // -----------------------------------------------------------------
+      // Deal with sampling the sonar ultrasonic range sensors
+      //
       switch (usonarSampleState) {
-        case USONAR_STATE_IDLE: {
+        case USONAR_STATE_MEAS_START: {
           int queueLevel = 0;
           queueLevel = usonar.getQueueLevel();  // In our scheme we expect this to always be 0
           if ((queueLevel != 0) && (system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG)) {
-            host_uart->print((Text)" Sonar WARNING: edge queue not empty at start. ");
+            host_uart->print((Text)" Sonar WARNING at meas cycle ");
+            host_uart->integer_print(currentSonarNumber);
+            host_uart->print((Text)" start: Queue had ");
             host_uart->integer_print(queueLevel);
             host_uart->print((Text)" edges! \r\n");
             usonar.flushQueue();
             currentDelayData1 = 0;                // Reset the sample gathering values for this run
             currentDelayData2 = 0;
+          } else {
+            // Indicate we are going to start next sonar measurement cycle
+            if (system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
+              host_uart->print((Text)" Sonar meas cycle ");
+              host_uart->integer_print(currentSonarNumber);
+              host_uart->print((Text)" starting.\r\n");
+            }
           }
 
           currentSonarNumber += 1;
@@ -886,19 +987,44 @@ void loop() {
             }
           }
 
-          // After validating unit will work we trigger it
-          if ((usonar.getTriggerPin(currentSonarNumber) <= 0) ||
-              (usonar.isUnitEnabled(currentSonarNumber) == 0)) {
+          // Skip any unit that will not work with PinChange interrupt
+          if ((usonar_measSpecs[currentSonarNumber].measMethod & US_MEAS_METHOD_PCINT) == 0) {
             // This unit will not work so just skip it and do next on on next pass
             break;
           }
 
           // Start the trigger for this sensor and enable interrupts
-          // Enable global interrupts by setting the I bit (7th bit) in the status register:
           usonar_producerIndex = 0;    // !!!BUG HACK_FIX!!!  FIXME!!! 
           usonar_consumerIndex = 0;    // !!!BUG HACK_FIX!!!  FIXME!!!
-          // SREG |= _BV(7);
-          sonarMeasTriggerTime = usonar.trigger(currentSonarNumber);
+
+          // Enable this units pin change interrupt then enable global ints for pin changes
+          PCIFR = 0x06;		// This clears any pending pin change ints
+          switch (usonar_measSpecs[currentSonarNumber].intRegNum) {
+            case 1:
+              PCMSK2 = 0;
+              // MJ_FIXME1: PCMSK1 = usonar_measSpecs[currentSonarNumber].intBit;
+              PCMSK1 =  _BV(7) | _BV(6) | _BV(5) | _BV(4) | _BV(3) | _BV(2) ;
+              break;
+            case 2:
+              PCMSK1 = 0;
+              // MJ_FIXME1: PCMSK2 = usonar_measSpecs[currentSonarNumber].intBit;
+              if (currentSonarNumber == 7) {  // For some reason #7 is better if only done for itself
+                PCMSK2 = _BV(7) | _BV(6) | _BV(5) | _BV(4) | _BV(3) | _BV(2) | _BV(1) | _BV(0);
+              } else {
+                PCMSK2 = _BV(7) | _BV(6) | _BV(5) | _BV(4) | _BV(3) | _BV(2)          | _BV(0);
+              }
+              break;
+            default:
+              // This is REALLY a huge coding issue or problem in usonar_measSpec
+              if (system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
+                host_uart->string_print((Text)" Sonar ERROR in code for intRegNum!\r\n");
+              }
+              break;
+          } 
+          SREG |= _BV(7);
+         
+          // Trigger the sonar unit to start measuring and return start time
+          sonarMeasTriggerTime = usonar.measTrigger(currentSonarNumber);
 
           if (system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
             char longStr[32];
@@ -927,7 +1053,7 @@ void loop() {
             if (system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
               host_uart->print((Text)" Sonar system tic rollover in meas wait. \r\n");
             }
-            usonarSampleState = USONAR_STATE_IDLE;
+            usonarSampleState = USONAR_STATE_MEAS_START;
             break;
           }
 
@@ -937,6 +1063,7 @@ void loop() {
           if (measCycleTime < USONAR_MEAS_TIME)     {   
             break;     // Still waiting for measurement
           }
+
 
           // OK we think we have measurement data so check for and get edge data
           if (system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
@@ -966,6 +1093,10 @@ void loop() {
 
             break;   // break to wait till next pass and do next sensor
           }
+
+          // We clear the individual pin interrupt enable bits now
+          //PCMSK1 = 0;
+          //PCMSK2 = 0;
 
           // So lets (FINALLY) get the two edge samples
           unsigned long echoPulseWidth;    // Time between edges
@@ -1064,13 +1195,9 @@ void loop() {
             if (system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
               host_uart->print((Text)" Sonar system timer rollover in meas spacing.\r\n");
             }
-            usonarSampleState = USONAR_STATE_IDLE;
+            usonarSampleState = USONAR_STATE_MEAS_START;
           } else if (waitTimer > USONAR_SAMPLES_US) {   
-            // Ok to move on to the next sonar measurement cycle
-            if (system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
-              host_uart->print((Text)" Sonar Do next meas.\r\n");
-            }
-            usonarSampleState = USONAR_STATE_IDLE;
+            usonarSampleState = USONAR_STATE_MEAS_START;
           }
 
           // If we fall through without state change we are still waiting
@@ -1078,7 +1205,7 @@ void loop() {
           break;
 
         default:
-              usonarSampleState = USONAR_STATE_IDLE;
+              usonarSampleState = USONAR_STATE_MEAS_START;
         break;
       }
       
