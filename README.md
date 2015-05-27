@@ -47,6 +47,32 @@ processor board.
 
 * Camera: Upward pointing Raspberry Pi Camera (2592 x 1944 pixels)
 
+## Running Loki
+
+(These instructions are too brief!!!)
+
+Do the following:
+
+1. Run `roscore` on RasPi2
+
+2. Run `roslaunch ros_arduino_python arduino.launch` on RasPi2
+
+3. Run `roslaunch fiducial_lib loki.launch` on laptop
+
+4. Run `rviz` on laptop.
+
+   * In left sidebar, under `Global Option` change `Fixed Frame
+     to `base_link`.
+
+   * Click on [Add] and select `Range`.  You will need to do this
+     16 times, because there are 16 sonars. 
+
+   * Under `Range`=>`Topic`, select the correct topic to listen to.
+     This will be one of `/arduino/sensor/sensor_1` through 
+     `/arduino/sensor/sensor_16`.
+
+   * Rinse, Lather, Repeat.
+
 ## Installing the Arduino-Makefile Development Environment
 
 The software environment for the bus_loki is more complicated
