@@ -116,13 +116,9 @@
 
   <joint name="base_sonar_13" type="fixed">
     <parent link="base_link"/>
-    <child link="sonar_12"/>
+    <child link="sonar_13"/>
     <origin rpy="0 0 -1.57" xyz="-0.117 -0.055 0"/>
   </joint>
-
-
-
-
 
   <link name="sonar_14">
   </link>
