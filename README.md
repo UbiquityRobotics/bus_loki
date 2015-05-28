@@ -4,7 +4,7 @@ This repository contains the documentation and code for the
 Loki robot.
 
 <BlockQuote>
-<Img Src="Loki_Side_with_Arm_Out.jpg" Alt="Side View of Loki">
+<Img Src="LokiFullyLoaded_20150526.jpg" Alt="Side View of Loki with arm">
 </BlockQuote>
 
 ## Introduction
