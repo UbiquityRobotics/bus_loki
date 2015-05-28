@@ -227,9 +227,9 @@ float sonarDistancesInMeters[USONAR_MAX_UNITS];
 // Define a max expected delay time in microseconds.
 // 30000 is about 5 meters
 #define USONAR_ECHO_MAX       ((long)(28100))   // Longest echo time we expect (28100 is 5  meters)
-#define USONAR_MEAS_TIME     ((long)(100000))   // Time to wait per measurement
-#define USONAR_MEAS_TOOLONG   ((long)(70000))   // Meas delay too long
-#define USONAR_SAMPLES_US    ((long)(150000))   // One measurement each time this many uSec goes by
+#define USONAR_MEAS_TIME     ((long)(150000))   // Time to wait per measurement
+#define USONAR_MEAS_TOOLONG   ((long)(70000))   // Measurement itself was too long
+#define USONAR_SAMPLES_US    ((long)(200000))   // One measurement each time this many uSec goes by
 #define USONAR_ECHO_ERR1     ((long)(1*282))  
 #define USONAR_ECHO_ERR2     ((long)(2*282)) 
 #define USONAR_ECHO_ERR3     ((long)(3*282)) 
@@ -237,10 +237,18 @@ float sonarDistancesInMeters[USONAR_MAX_UNITS];
 #define USONAR_US_TO_METERS  ((float)(5620.0))  // Standard air nominal uSec delay for 2-way bounce time
 #define USONAR_MAX_DIST_CM        900.0      // a cap used in reading well after meas has finished
 
+#define ERR_COUNTERS_MAX                 8
+int  errCounters[ERR_COUNTERS_MAX];
+unsigned long fullCycleCounts;
+
 // States of sonar sensor acquision
 #define  USONAR_STATE_MEAS_START         0
 #define  USONAR_STATE_WAIT_FOR_MEAS      1
 #define  USONAR_STATE_POST_SAMPLE_WAIT   2
+
+// We found that the nice producer consumer queue has to be reset down wo
+// just do one meas per loop and reset queue each time so we get 2 edges
+#define  USONAR_ULTRA_FAST_ISR
 
 // System dependent clock for getting microseconds as fast as we can do it
 #define SYSTEM_GET_MICROSECONDS    micros()
@@ -298,10 +306,10 @@ const Usonar_Meas_Spec  usonar_measSpecs[USONAR_MAX_UNITS] = { {0,0,0,0,0},
     {US_MEAS_METHOD_T10_PJ7,   sonar_trig10_pin, sonar_echo10_pin, 1,  _BV(6) },
     {US_MEAS_METHOD_PCINT,     sonar_trig11_pin, sonar_echo11_pin, 1,  _BV(5) },
     {US_MEAS_METHOD_PCINT,     sonar_trig12_pin, sonar_echo12_pin, 1,  _BV(4) },
-    {US_MEAS_METHOD_PCINT,     sonar_trig13_pin, sonar_echo13_pin, 1,  _BV(3) },
-    {US_MEAS_METHOD_PCINT,     sonar_trig14_pin, sonar_echo14_pin, 1,  _BV(3) },
-    {US_MEAS_METHOD_T15_PG4,   sonar_trig15_pin, sonar_echo15_pin, 1,  _BV(2) },
-    {US_MEAS_METHOD_T16_PG3,   sonar_trig16_pin, sonar_echo16_pin, 1,  _BV(2) } 
+    {US_MEAS_METHOD_PCINT,     sonar_trig13_pin, sonar_echo13_pin, 1,  _BV(2) },
+    {US_MEAS_METHOD_PCINT,     sonar_trig14_pin, sonar_echo14_pin, 1,  _BV(2) },
+    {US_MEAS_METHOD_T15_PG4,   sonar_trig15_pin, sonar_echo15_pin, 1,  _BV(3) },
+    {US_MEAS_METHOD_T16_PG3,   sonar_trig16_pin, sonar_echo16_pin, 1,  _BV(3) } 
 };
 
 // Define the circular queue members and indexes.
@@ -601,6 +609,7 @@ class Loki_USonar {
 ISR(PCINT1_vect) {
    unsigned long now = SYSTEM_GET_MICROSECONDS; 	// Get clock FAST as we can
 
+#ifndef USONAR_ULTRA_FAST_ISR
    int unused = 0;
    int inuse  = 0;
    // Ensure there is room in the queue even if we have rollover
@@ -611,7 +620,9 @@ ISR(PCINT1_vect) {
    }
    unused = USONAR_QUEUE_LEN - inuse;
 
-   if (unused > 0) {
+   if (unused >= USONAR_MIN_EMPTIES) {
+#endif
+
        // We can produce this entry into the queue and bump producer index
        unsigned int nextProducerIndex = usonar_producerIndex + 1;
        if (nextProducerIndex >= USONAR_QUEUE_LEN) 
@@ -621,9 +632,12 @@ ISR(PCINT1_vect) {
        // use the LOWER 2 bits to indicate which bank this change is from
        usonar_echoEdgeQueue[usonar_producerIndex]  = (now & 0xfffffffc) | 1;
        usonar_producerIndex = nextProducerIndex;  // Bump producer index to this valid one
+
+#ifndef USONAR_ULTRA_FAST_ISR
    } else {
        usonar_queueOverflow  += 1;
    }
+#endif
 }
 
 // *PCINT2_vect*() is one of two ISRs to gather sonar bounce pulse widths
@@ -636,6 +650,7 @@ ISR(PCINT1_vect) {
 ISR(PCINT2_vect) {
    unsigned long now = SYSTEM_GET_MICROSECONDS; 	// Get clock FAST as we can
 
+#ifndef USONAR_ULTRA_FAST_ISR
    int unused = 0;
    int inuse  = 0;
    // Ensure there is room in the queue even if we have rollover
@@ -647,6 +662,8 @@ ISR(PCINT2_vect) {
    unused = USONAR_QUEUE_LEN - inuse;
 
    if (unused >= USONAR_MIN_EMPTIES) {
+#endif
+
        // We can produce this entry into the queue and bump producer index
        unsigned int nextProducerIndex = usonar_producerIndex + 1;
        if (nextProducerIndex >= USONAR_QUEUE_LEN) 
@@ -656,9 +673,12 @@ ISR(PCINT2_vect) {
        // use the LOWER 2 bits to indicate which bank this change is from
        usonar_echoEdgeQueue[usonar_producerIndex]  = (now & 0xfffffffc) | 2;
        usonar_producerIndex = nextProducerIndex;  // Bump producer index to this valid one
+
+#ifndef USONAR_ULTRA_FAST_ISR
    } else {
        usonar_queueOverflow  += 1;
    }
+#endif
 }
 
 
@@ -701,6 +721,11 @@ void setup() {
   for (int ix = 0; ix < USONAR_MAX_UNITS; ix++) {
     sonarDistancesInMeters[ix] = (float)(0.0);
     sonarSampleTimes[ix] = (unsigned long)0;
+  }
+
+  fullCycleCounts = 0;
+  for (int ix = 0; ix < ERR_COUNTERS_MAX ; ix++) {
+    errCounters[ix] = 0;
   }
 
   // Initialize pin directions:
@@ -777,16 +802,14 @@ void setup() {
 
       // The Pin Change interrupts are enabled for each bit on Bank 1 
       // As that pin is used in the measurement sampling code, not here
-      // MJ_FIXME1:  PCMSK1 = 0;
-      PCMSK1 =  _BV(7) | _BV(6) | _BV(5) | _BV(4) | _BV(3) | _BV(2) ;
+      PCMSK1 = 0;
       PCICR |= _BV(1);
 
       // Set up for interrupts on Bank 2 pin changes or pins 23:16
       // These are used for ultrasonic sonar units mostly in front of Loki
       // The Pin Change interrupts are enabled for each bit on Bank 1 
       // As that pin is used in the measurement sampling code, not here
-      // MJ_FIXME1:  PCMSK2 = 0;
-      PCMSK2 = _BV(7) | _BV(6) | _BV(5) | _BV(4) | _BV(3) | _BV(2)          | _BV(0);
+      PCMSK2 = 0;
       PCICR |= _BV(2);
 
 
@@ -969,6 +992,18 @@ void loop() {
           currentSonarNumber += 1;
           if (currentSonarNumber > USONAR_MAX_UNITS) {
             currentSonarNumber = 1;
+
+            fullCycleCounts+= 1;
+            if (((fullCycleCounts & (unsigned long)(0x7)) == 0) && 
+               (system_debug_flags_get() & DBG_FLAG_USENSOR_ERR_DEBUG)) {
+              host_uart->print((Text)" Sonar ERR Counters: ");
+              for (int ix = 0; ix < ERR_COUNTERS_MAX ; ix++) {
+                host_uart->integer_print(errCounters[ix]);
+                host_uart->print((Text)" ");
+              }
+              host_uart->print((Text)"\r\n");
+            }
+
             if (system_debug_flags_get() & DBG_FLAG_USENSOR_RESULTS) {
                char  outBuf[32];
                float distInCm;
@@ -994,25 +1029,21 @@ void loop() {
           }
 
           // Start the trigger for this sensor and enable interrupts
-          usonar_producerIndex = 0;    // !!!BUG HACK_FIX!!!  FIXME!!! 
-          usonar_consumerIndex = 0;    // !!!BUG HACK_FIX!!!  FIXME!!!
+          #ifdef USONAR_ULTRA_FAST_ISR
+          usonar_producerIndex = 0;    // For ultra-fast we only gather 2 and reset queue each time
+          usonar_consumerIndex = 0;    
+          #endif
 
           // Enable this units pin change interrupt then enable global ints for pin changes
           PCIFR = 0x06;		// This clears any pending pin change ints
           switch (usonar_measSpecs[currentSonarNumber].intRegNum) {
             case 1:
               PCMSK2 = 0;
-              // MJ_FIXME1: PCMSK1 = usonar_measSpecs[currentSonarNumber].intBit;
-              PCMSK1 =  _BV(7) | _BV(6) | _BV(5) | _BV(4) | _BV(3) | _BV(2) ;
+              PCMSK1 = usonar_measSpecs[currentSonarNumber].intBit;
               break;
             case 2:
               PCMSK1 = 0;
-              // MJ_FIXME1: PCMSK2 = usonar_measSpecs[currentSonarNumber].intBit;
-              if (currentSonarNumber == 7) {  // For some reason #7 is better if only done for itself
-                PCMSK2 = _BV(7) | _BV(6) | _BV(5) | _BV(4) | _BV(3) | _BV(2) | _BV(1) | _BV(0);
-              } else {
-                PCMSK2 = _BV(7) | _BV(6) | _BV(5) | _BV(4) | _BV(3) | _BV(2)          | _BV(0);
-              }
+              PCMSK2 = usonar_measSpecs[currentSonarNumber].intBit;
               break;
             default:
               // This is REALLY a huge coding issue or problem in usonar_measSpec
@@ -1080,6 +1111,13 @@ void loop() {
           int edgeCount = usonar.getQueueLevel();
           if (edgeCount != 2) {
             // We expect exactly two edges.  If not we abort this meas cycle
+            if (edgeCount == 0) {
+              errCounters[0] += 1;       // debug tally of errors
+            } else if (edgeCount ==1) {
+              errCounters[1] += 1;       // debug tally of errors
+            } else {
+              errCounters[2] += 1;       // debug tally of errors
+            }
             if (system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
               host_uart->print((Text)" Sonar ERROR! meas saw ");
               host_uart->integer_print(edgeCount);
@@ -1118,6 +1156,7 @@ void loop() {
 
           if (currentDelayData1 > currentDelayData2) {
             // This is another form of rollover every 70 minutes or so but just 
+            errCounters[3] += 1;       // debug tally of errors
             if (system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
               host_uart->print((Text)" Sonar sys tic rollover OR edges reversed\r\n");
               // special value as error type indicator but as things mature we should NOT stuff this
@@ -1127,20 +1166,22 @@ void loop() {
 
             usonarSampleState = USONAR_STATE_POST_SAMPLE_WAIT;   // move on to next sample cycle
 
-          //} else if (echoPulseWidth > USONAR_MEAS_TOOLONG) {  
-          //  if (system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
-          //    host_uart->print((Text)" Sonar meas result over the MAX\r\n");
-          //  }
+          } else if (echoPulseWidth > USONAR_MEAS_TOOLONG) {  
+            errCounters[4] += 1;       // debug tally of errors
+            if (system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
+              host_uart->print((Text)" Sonar meas result over the MAX\r\n");
+            }
 
           //  // special value as error type indicator but as things mature we should NOT stuff this
           //  sonarDistancesInMeters[currentSonarNumber] = 
           //    usonar.echoUsToMeters((USONAR_ECHO_MAX + USONAR_ECHO_ERR3));
-          //  usonarSampleState = USONAR_STATE_POST_SAMPLE_WAIT;   // move on to next sample cycle
+            usonarSampleState = USONAR_STATE_POST_SAMPLE_WAIT;   // move on to next sample cycle
 
           } else {
               // Save our sample delay AND save our time we acquired the sample
               if (echoPulseWidth > USONAR_ECHO_MAX) {
                // We are going to cap this as a form of non-expected result so can it
+                errCounters[5] += 1;       // debug tally of errors
                 if (system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
                   char longStr[32];
                   ltoa(echoPulseWidth, longStr,10);
