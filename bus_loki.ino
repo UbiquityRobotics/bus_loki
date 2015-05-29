@@ -186,8 +186,10 @@ ISR(PCINT0_vect) {
  */
 
 // Some in-memory history of last sample times and readings in meters
-unsigned long sonarSampleTimes[USONAR_MAX_UNITS];
-float sonarDistancesInMeters[USONAR_MAX_UNITS];
+// These tables are organized by sonar number and not by measurement cycle number
+// Also the index is the sonar number so entry [0] is zero
+unsigned long sonarSampleTimes[USONAR_MAX_UNITS+1];
+float         sonarDistancesInMeters[USONAR_MAX_UNITS+1];
 
 #define ERR_COUNTERS_MAX                 8
 int  errCounters[ERR_COUNTERS_MAX];
@@ -245,25 +247,30 @@ int usonar_queueOverflow = 0;              // Producer can set this and consumer
 // PCINT1:   15       14       13       12       11      10       --       --
 
 //  This table defines the methods that sonar measurements can be taken
-const Usonar_Meas_Spec  usonar_measSpecs[USONAR_MAX_UNITS] = { {0,0,0,0,0},
-    {US_MEAS_METHOD_T01_PG2,   sonar_trig1_pin,  sonar_echo1_pin,  2,  _BV(7) },
-    {US_MEAS_METHOD_PIN_PCINT, sonar_trig2_pin,  sonar_echo2_pin,  2,  _BV(6) },
-    {US_MEAS_METHOD_PIN_PCINT, sonar_trig3_pin,  sonar_echo3_pin,  2,  _BV(5) },
-    {US_MEAS_METHOD_PIN_PCINT, sonar_trig4_pin,  sonar_echo4_pin,  2,  _BV(4) },
-    {US_MEAS_METHOD_PIN_PCINT, sonar_trig5_pin,  sonar_echo5_pin,  2,  _BV(3) },
-    {US_MEAS_METHOD_PIN_PCINT, sonar_trig6_pin,  sonar_echo6_pin,  2,  _BV(2) },
-    {US_MEAS_METHOD_PIN_PCINT, sonar_trig7_pin,  sonar_echo7_pin,  2,  _BV(1) },
-    {US_MEAS_METHOD_PIN_PCINT, sonar_trig8_pin,  sonar_echo8_pin,  2,  _BV(0) },
-    {US_MEAS_METHOD_PIN_PCINT, sonar_trig9_pin,  sonar_echo9_pin,  1,  _BV(7) },
-    {US_MEAS_METHOD_T10_PJ7,   sonar_trig10_pin, sonar_echo10_pin, 1,  _BV(6) },
-    {US_MEAS_METHOD_PCINT,     sonar_trig11_pin, sonar_echo11_pin, 1,  _BV(5) },
-    {US_MEAS_METHOD_PCINT,     sonar_trig12_pin, sonar_echo12_pin, 1,  _BV(4) },
-    {US_MEAS_METHOD_PCINT,     sonar_trig13_pin, sonar_echo13_pin, 1,  _BV(2) },
-    {US_MEAS_METHOD_PCINT,     sonar_trig14_pin, sonar_echo14_pin, 1,  _BV(2) },
-    {US_MEAS_METHOD_T15_PG4,   sonar_trig15_pin, sonar_echo15_pin, 1,  _BV(3) },
-    {US_MEAS_METHOD_T16_PG3,   sonar_trig16_pin, sonar_echo16_pin, 1,  _BV(3) }
+//  The index to this table is meant to be the measurement cycle number of our task 
+//
+//  Note that the code should work if you shuffle this table.
+//  You may wish to shuffle the table to get faster updates around each side
+//  sort of like how you tighten bolts on a wheel by doing the one across the center
+//
+const Usonar_Meas_Spec  usonar_measSpecs[USONAR_MAX_SPECS] = { 
+    {  1, US_MEAS_METHOD_T01_PG2,   sonar_trig1_pin,  sonar_echo1_pin,  2,  _BV(7) },
+    {  2, US_MEAS_METHOD_PIN_PCINT, sonar_trig2_pin,  sonar_echo2_pin,  2,  _BV(6) },
+    {  3, US_MEAS_METHOD_PIN_PCINT, sonar_trig3_pin,  sonar_echo3_pin,  2,  _BV(5) },
+    {  4, US_MEAS_METHOD_PIN_PCINT, sonar_trig4_pin,  sonar_echo4_pin,  2,  _BV(4) },
+    {  5, US_MEAS_METHOD_PIN_PCINT, sonar_trig5_pin,  sonar_echo5_pin,  2,  _BV(3) },
+    {  6, US_MEAS_METHOD_PIN_PCINT, sonar_trig6_pin,  sonar_echo6_pin,  2,  _BV(2) },
+    {  7, US_MEAS_METHOD_PIN_PCINT, sonar_trig7_pin,  sonar_echo7_pin,  2,  _BV(1) },
+    {  8, US_MEAS_METHOD_PIN_PCINT, sonar_trig8_pin,  sonar_echo8_pin,  2,  _BV(0) },
+    {  9, US_MEAS_METHOD_PIN_PCINT, sonar_trig9_pin,  sonar_echo9_pin,  1,  _BV(7) },
+    { 10, US_MEAS_METHOD_T10_PJ7,   sonar_trig10_pin, sonar_echo10_pin, 1,  _BV(6) },
+    { 11, US_MEAS_METHOD_PCINT,     sonar_trig11_pin, sonar_echo11_pin, 1,  _BV(5) },
+    { 12, US_MEAS_METHOD_NONE,      sonar_trig12_pin, sonar_echo12_pin, 1,  _BV(4) },
+    { 13, US_MEAS_METHOD_PCINT,     sonar_trig13_pin, sonar_echo13_pin, 1,  _BV(2) },
+    { 14, US_MEAS_METHOD_PCINT,     sonar_trig14_pin, sonar_echo14_pin, 1,  _BV(2) },
+    { 15, US_MEAS_METHOD_T15_PG4,   sonar_trig15_pin, sonar_echo15_pin, 1,  _BV(3) },
+    { 16, US_MEAS_METHOD_T16_PG3,   sonar_trig16_pin, sonar_echo16_pin, 1,  _BV(3) }
 };
-
 
 
 // *PCINT1_vect*() is one of two ISRs to gather sonar bounce pulse widths
@@ -363,16 +370,16 @@ ISR(PCINT2_vect) {
 
 // Setup instance of class for Loki Ultrasonic Sensor support
 static Loki_USonar usonar;
-static int  currentSonarNumber;
+static int  cycleNum;           // The measurement cycle number (does not have to be sonar unit)
 static int  usonarSampleState;
 static unsigned long sonarMeasTriggerTime;
 static unsigned long currentDelayData1;
 static unsigned long currentDelayData2;
 
-// HACK!!!!  Calls accessable using extern for backdoors to query read sensor distances
-// An external access hack so we can fetch sonar values from bus_server
+// This is a way to make accessable using extern for backdoors to query read sensor distances
+// We avoid using our class that may have encapsulated this outside of this module
 int usonar_getLastDistInMm(int sonarUnit) {
-    if ((sonarUnit < 1) || (sonarUnit >= USONAR_MAX_UNITS)) {
+    if ((sonarUnit < 1) || (sonarUnit > USONAR_MAX_UNITS)) {
         return -10;
     }
     return (int)(sonarDistancesInMeters[sonarUnit] * (float)1000.0);
@@ -386,7 +393,7 @@ float usonar_inlineReadMeters(int sonarUnit) {
 void setup() {
 
   usonarSampleState = USONAR_STATE_MEAS_START;
-  currentSonarNumber = 0;
+  cycleNum = 0;
   sonarMeasTriggerTime = 0;
   currentDelayData1 = (unsigned long)0;
   currentDelayData2 = (unsigned long)0;
@@ -641,13 +648,16 @@ void loop() {
       // -----------------------------------------------------------------
       // Deal with sampling the sonar ultrasonic range sensors
       //
+      // We cycle through entries in the measurement spec table using cycleNum
+      // Most calls accept measurement spec table entry number NOT sonar unit number.
+      //
       switch (usonarSampleState) {
         case USONAR_STATE_MEAS_START: {
           int queueLevel = 0;
           queueLevel = usonar.getQueueLevel();  // In our scheme we expect this to always be 0
           if ((queueLevel != 0) && (system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG)) {
             host_uart->print((Text)" Sonar WARNING at meas cycle ");
-            host_uart->integer_print(currentSonarNumber);
+            host_uart->integer_print(usonar.measSpecNumToUnitNum(cycleNum));
             host_uart->print((Text)" start: Queue had ");
             host_uart->integer_print(queueLevel);
             host_uart->print((Text)" edges! \r\n");
@@ -658,14 +668,15 @@ void loop() {
             // Indicate we are going to start next sonar measurement cycle
             if (system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
               host_uart->print((Text)" Sonar meas cycle ");
-              host_uart->integer_print(currentSonarNumber);
+              host_uart->integer_print(usonar.measSpecNumToUnitNum(cycleNum));
               host_uart->print((Text)" starting.\r\n");
             }
           }
 
-          currentSonarNumber += 1;
-          if (currentSonarNumber > USONAR_MAX_UNITS) {
-            currentSonarNumber = 1;
+          cycleNum += 1;     // Bump to next entry in our measurement spec table 
+          if (cycleNum > USONAR_MAX_SPECS) 
+            {
+            cycleNum = 0;
 
             fullCycleCounts+= 1;
             if (((fullCycleCounts & (unsigned long)(0x7)) == 0) && 
@@ -682,7 +693,7 @@ void loop() {
                char  outBuf[32];
                float distInCm;
                host_uart->print((Text)" Sonars: ");
-               for (int sonarUnit = 1; sonarUnit < USONAR_MAX_UNITS ; sonarUnit++) {
+               for (int sonarUnit = 1; sonarUnit <= USONAR_MAX_UNITS ; sonarUnit++) {
                   distInCm = (float)(usonar_getLastDistInMm(sonarUnit))/(float)(10.0);
                   if (distInCm > USONAR_MAX_DIST_CM) {
                     distInCm = USONAR_MAX_DIST_CM;      // graceful hard cap
@@ -697,7 +708,7 @@ void loop() {
           }
 
           // Skip any unit that will not work with PinChange interrupt
-          if ((usonar.getMeasSpec(currentSonarNumber) & US_MEAS_METHOD_PCINT) == 0)  {
+          if ((usonar.getMeasSpec(cycleNum) & US_MEAS_METHOD_PCINT) == 0)  {
             // This unit will not work so just skip it and do next on on next pass
             break;
           }
@@ -710,14 +721,14 @@ void loop() {
 
           // Enable this units pin change interrupt then enable global ints for pin changes
           PCIFR = 0x06;		// This clears any pending pin change ints
-          switch (usonar.getInterruptMaskRegNumber(currentSonarNumber)) {
+          switch (usonar.getInterruptMaskRegNumber(cycleNum)) {
             case 1:
               PCMSK2 = 0;
-              PCMSK1 = usonar.getInterruptBit(currentSonarNumber);
+              PCMSK1 = usonar.getInterruptBit(cycleNum);
               break;
             case 2:
               PCMSK1 = 0;
-              PCMSK2 = usonar.getInterruptBit(currentSonarNumber);
+              PCMSK2 = usonar.getInterruptBit(cycleNum);
               break;
             default:
               // This is REALLY a huge coding issue or problem in usonar_measSpec
@@ -729,13 +740,13 @@ void loop() {
           SREG |= _BV(7);
          
           // Trigger the sonar unit to start measuring and return start time
-          sonarMeasTriggerTime = usonar.measTrigger(currentSonarNumber);
+          sonarMeasTriggerTime = usonar.measTrigger(cycleNum);
 
           if (system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
             char longStr[32];
             ltoa(sonarMeasTriggerTime, longStr,10);
             host_uart->string_print((Text)" Sonar start Sample: ");
-            host_uart->integer_print(currentSonarNumber);
+            host_uart->integer_print(usonar.measSpecNumToUnitNum(cycleNum));
             host_uart->string_print((Text)" at ");
             host_uart->string_print((Text)longStr);
             host_uart->string_print((Text)"us\r\n");
@@ -746,7 +757,11 @@ void loop() {
           break;
 
         case USONAR_STATE_WAIT_FOR_MEAS: {
-          // wait max time to ensure both edges get seen then sample for edges
+          // wait max time to ensure both edges get seen for realistic detection max
+          //
+          // If the sonar is blocked then these units can take about 200ms for edge pulse
+          // We will time out well before that and because we use a single edge detect
+          // the long sensor will be effectively ignored for several following measurements.
           unsigned long measCycleTime;    // Time so far waiting for this measurement
           unsigned long rightNow;
 
@@ -786,19 +801,23 @@ void loop() {
           if (edgeCount != 2) {
             // We expect exactly two edges.  If not we abort this meas cycle
             if (edgeCount == 0) {
-              errCounters[0] += 1;       // debug tally of errors
+              errCounters[0] += 1;       //  Most likely defective or broken/flakey wiring
             } else if (edgeCount ==1) {
-              errCounters[1] += 1;       // debug tally of errors
+              errCounters[1] += 1;       //  Most likely blocked sensor that waits 200ms
             } else {
-              errCounters[2] += 1;       // debug tally of errors
+              errCounters[2] += 1;       //  If this happens something is very wrong
             }
             if (system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
-              host_uart->print((Text)" Sonar ERROR! meas saw ");
+              host_uart->print((Text)" Sonar ");
+              host_uart->integer_print((int)usonar.measSpecNumToUnitNum(cycleNum));
+              host_uart->print((Text)" in cycle ");
+              host_uart->integer_print(cycleNum);
+              host_uart->print((Text)" ERROR! meas saw ");
               host_uart->integer_print(edgeCount);
               host_uart->print((Text)" edges! \r\n");
               // special value as error type indicator but as things mature we should NOT stuff this
-              sonarDistancesInMeters[currentSonarNumber] = 
-              usonar.echoUsToMeters((USONAR_ECHO_MAX + USONAR_ECHO_ERR1));
+              sonarDistancesInMeters[usonar.measSpecNumToUnitNum(cycleNum)] = 
+                usonar.echoUsToMeters((USONAR_ECHO_MAX + USONAR_ECHO_ERR1));
             }
 
             usonarSampleState = USONAR_STATE_POST_SAMPLE_WAIT;   // move on to next sample cycle
@@ -834,7 +853,7 @@ void loop() {
             if (system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
               host_uart->print((Text)" Sonar sys tic rollover OR edges reversed\r\n");
               // special value as error type indicator but as things mature we should NOT stuff this
-              sonarDistancesInMeters[currentSonarNumber] = 
+              sonarDistancesInMeters[usonar.measSpecNumToUnitNum(cycleNum)] = 
                 usonar.echoUsToMeters((unsigned long)USONAR_ECHO_MAX + (unsigned long)USONAR_ECHO_ERR2);
             }
 
@@ -847,7 +866,7 @@ void loop() {
             }
 
           //  // special value as error type indicator but as things mature we should NOT stuff this
-          //  sonarDistancesInMeters[currentSonarNumber] = 
+          //  sonarDistancesInMeters[usonar.measSpecNumToUnitNum(cycleNum)] = 
           //    usonar.echoUsToMeters((USONAR_ECHO_MAX + USONAR_ECHO_ERR3));
             usonarSampleState = USONAR_STATE_POST_SAMPLE_WAIT;   // move on to next sample cycle
 
@@ -870,9 +889,9 @@ void loop() {
               }
 
               // THIS IS THE REAL AND DESIRED PLACE WE EXPECT TO BE EACH TIME!
-              sonarSampleTimes[currentSonarNumber] = currentDelayData2;
+              sonarSampleTimes[usonar.measSpecNumToUnitNum(cycleNum)] = currentDelayData2;
               float distanceInMeters = usonar.echoUsToMeters(echoPulseWidth);
-              sonarDistancesInMeters[currentSonarNumber] = distanceInMeters;
+              sonarDistancesInMeters[usonar.measSpecNumToUnitNum(cycleNum)] = distanceInMeters;
 
               if (system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
                 char outBuf2[32];
@@ -882,7 +901,7 @@ void loop() {
                 distInCm = distanceInMeters * (float)(100.0);
                 dtostrf(distInCm, 6, 1, outBuf2);
                 host_uart->string_print((Text)" S: ");
-                host_uart->integer_print((int)currentSonarNumber);
+                host_uart->integer_print((int)usonar.measSpecNumToUnitNum(cycleNum));
                 host_uart->string_print((Text)" E: ");
                 host_uart->integer_print((int)echoCm);
                 host_uart->string_print((Text)"cm D: ");

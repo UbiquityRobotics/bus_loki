@@ -13,15 +13,21 @@ extern unsigned int  usonar_consumerIndex;    // Owned by consumer and only insp
 
 
 // Define max number of sonar units used in this system
-#define USONAR_MAX_UNITS    17    // Sonar number as silkscreened on Loki board
+#define USONAR_MAX_UNITS    16    // Sonar number as silkscreened on Loki board
+#define USONAR_MAX_SPECS    16    // Max measurement specs  (max table of spec entries)
 
 // Define the parameters for measurement of Sonar Units
 //
+// The numbers below assume lots of sensors being cycled because if a sonar is blocked
+// we timeout for about 10meters but the high pulse may be up to 200ms so that is ok
+// only if we enable single interrupt pins and let the blocked sensor with 200ms pulse
+// be ignored as others are measured.  For very small sensor counts BEWARE!
+//
 // 30000 is about 5 meters
 #define USONAR_ECHO_MAX       ((long)(28100))   // Longest echo time we expect (28100 is 5  meters)
-#define USONAR_MEAS_TIME     ((long)(150000))   // Time to wait per measurement
+#define USONAR_MEAS_TIME      ((long)(80000))   // Time to wait per measurement
 #define USONAR_MEAS_TOOLONG   ((long)(70000))   // Measurement itself was too long
-#define USONAR_SAMPLES_US    ((long)(200000))   // One measurement each time this many uSec goes by
+#define USONAR_SAMPLES_US    ((long)(100000))   // One measurement each time this many uSec goes by
 #define USONAR_ECHO_ERR1     ((long)(1*282))
 #define USONAR_ECHO_ERR2     ((long)(2*282))
 #define USONAR_ECHO_ERR3     ((long)(3*282))
@@ -57,6 +63,7 @@ extern unsigned int  usonar_consumerIndex;    // Owned by consumer and only insp
 // If entry is 0, not supported yet as it does not have digital pin #
 // Need a more clever set of code to deal with all the abnormal pins
 typedef struct usonar_meas_spec_t {
+    int unitNumber;     // The sonar unit for this entry where 3 would be the N3 sonar
     int measMethod;     // Method to be used for the measurement
     int trigPin;        // For direct pin this is digital pin number for custom it a routine to use
     int echoPin;        // The echo pin in terms of arduino pin to use for pulseIn
@@ -128,10 +135,12 @@ static const int sonar_trig16_pin = 0;          // IC Pin 28
 class Loki_USonar {
   private:
     int _numSonars;
+    int _numMeasSpecs;
 
   public:
     Loki_USonar() {
-        _numSonars = USONAR_MAX_UNITS;
+        _numSonars    = USONAR_MAX_UNITS;
+        _numMeasSpecs = USONAR_MAX_SPECS;
     };
 
 
@@ -195,83 +204,131 @@ class Loki_USonar {
   };
 
 
-  // Get the trigger pin from sonar unit number
+  // Helper to check range of measurement spec entries
+  // 
+  // Return value of 1 indicates valid meas spec entry number
+  // Negative value indicates unsupported spec table Entry
+  int isMeasSpecNumValid(int specNumber) {
+    if ((specNumber < 0) || (specNumber > _numMeasSpecs)) {
+        return -1;
+    }
+    return 1;
+  }
+  
+
+  // Get the measurement spec number for a given sonar unit number
   //
-  // Negative value indicates unsupported unit number
+  // Negative value indicates the sonar unit number was not found
+  //
+  int unitNumToMeasSpecNum(int sonarUnit) {
+    int specNumber = -1;
+
+    for (int i = 0; i < _numMeasSpecs; i++) {
+      if (usonar_measSpecs[i].unitNumber == sonarUnit) {
+        specNumber = i;
+      }
+    }
+
+    return specNumber;
+  };
+
+  // Get the sonar unit number for a given spec table entry
+  //
+  // Negative value indicates unsupported spec table Entry
+  //
+  int measSpecNumToUnitNum(int specNumber) {
+    int sonarUnit = 0;
+
+    if (isMeasSpecNumValid(specNumber) < 0) {
+        return -1;
+    }
+
+    sonarUnit = usonar_measSpecs[specNumber].unitNumber;
+
+    return sonarUnit;
+  };
+
+  // Get the trigger pin for the given spec table entry
+  //
+  // Negative value indicates unsupported spec table Entry
   // Zero return 0 indicates this unit does not support trigger line
   // a custom trigger is required for the measurement method.
   //
-  int getMeasTriggerPin(int sonarUnit) {
+  int getMeasTriggerPin(int specNumber) {
     int trigPin = 0;
 
-    if ((sonarUnit < 1) || (sonarUnit >= _numSonars)) {
+    if (isMeasSpecNumValid(specNumber) < 0) {
         return -1;
     }
 
     // If either of two modes is supported for main modes there is a trigger line
-    if (usonar_measSpecs[sonarUnit].measMethod & US_MEAS_METHOD_PIN_PCINT) {
-        trigPin = usonar_measSpecs[sonarUnit].trigPin;
+    if (usonar_measSpecs[specNumber].measMethod & US_MEAS_METHOD_PIN_PCINT) {
+        trigPin = usonar_measSpecs[specNumber].trigPin;
     }
 
     return trigPin;
   };
 
-  // Get the Pin change Interrupt Bank number (int mask reg number)
+  // Get the Pin change Interrupt Bank number for a spec table entry
   //
-  // Negative value indicates unsupported unit number
-  int getInterruptMaskRegNumber(int sonarUnit) {
-    if ((sonarUnit < 1) || (sonarUnit >= _numSonars)) {
+  // Negative value indicates unsupported spec table Entry
+  //
+  int getInterruptMaskRegNumber(int specNumber) {
+    if (isMeasSpecNumValid(specNumber) < 0) {
         return -1;
     }
-    return usonar_measSpecs[sonarUnit].intRegNum;
+    return usonar_measSpecs[specNumber].intRegNum;
   };
 
-  // Get the interrupt enable bit for this sonar unit
+  // Get the interrupt enable bit for the given spec table entry
   //
-  // Negative value indicates unsupported unit number
-  int getInterruptBit(int sonarUnit) {
-    if ((sonarUnit < 1) || (sonarUnit >= _numSonars)) {
+  // Negative value indicates unsupported spec table Entry
+  int getInterruptBit(int specNumber) {
+    if (isMeasSpecNumValid(specNumber) < 0) {
         return -1;
     }
-    return usonar_measSpecs[sonarUnit].intBit;
+    return usonar_measSpecs[specNumber].intBit;
   };
 
 
-  // Get the echo detect pin from sonar unit number
+  // Get the echo detect pin from sonar unit numberthe given spec table entry
   // Echo detect is only used for the inline measurement modes
   // which only the lower half of the sonars support.
   //
-  // Negative value indicates unsupported unit number
+  // Negative value indicates unsupported spec table Entry
   // Zero return indicates this unit does not support the feature
-  int getEchoDetectPin(int sonarUnit) {
+  int getEchoDetectPin(int specNumber) {
     int echoPin = 0;
 
-    if ((sonarUnit < 1) || (sonarUnit >= _numSonars)) {
+    if (isMeasSpecNumValid(specNumber) < 0) {
         return -1;
     }
 
     // We have to have this sonar unit at least support echo pin mode
-    if (usonar_measSpecs[sonarUnit].measMethod & US_MEAS_METHOD_PIN) {
-        echoPin = usonar_measSpecs[sonarUnit].echoPin;
+    if (usonar_measSpecs[specNumber].measMethod & US_MEAS_METHOD_PIN) {
+        echoPin = usonar_measSpecs[specNumber].echoPin;
     }
 
     return echoPin;
   };
 
-  // Indicate if the sonar unit is supported in any way at all
+  // Indicate if the sonar unit is enabled
   //
-  // Negative value indicates unsupported unit number
+  // NOTE: This is one of a few calls that take in Sonar Unit Number!
+  //
+  // Negative value indicates unsupported sonar unit number
+  //
   // Zero return indicates this unit does not support the feature
   // Non-zero returns the measurement methods and is thus non-zero
   int isUnitEnabled(int sonarUnit) {
     int enabled = 0;
-    if ((sonarUnit < 1) || (sonarUnit >= _numSonars)) {
+    if ((sonarUnit < 1) || (sonarUnit > _numSonars)) {
         return -1;
     }
 
     // This may seem 'silly' since NONE is zero but in case it changes
     // we will explicitly check with the define
-    enabled = usonar_measSpecs[sonarUnit].measMethod;
+    enabled = usonar_measSpecs[unitNumToMeasSpecNum(sonarUnit)].measMethod;
     if (enabled == US_MEAS_METHOD_NONE) {
       enabled = 0;
     }
@@ -279,19 +336,20 @@ class Loki_USonar {
     return enabled;
   };
 
-  // Fetch the measurement spec for this sonar
+  // Fetch the measurement spec for a given spec table entry
   //
+  // Negative value indicates unsupported spec table Entry
   // A return of < 0 indicates bad sonar unit number
-  int getMeasSpec(int sonarUnit) {
-    if ((sonarUnit < 1) || (sonarUnit >= _numSonars)) {
+  int getMeasSpec(int specNumber) {
+    if (isMeasSpecNumValid(specNumber) < 0) {
         return -1;
     }
 
-    return usonar_measSpecs[sonarUnit].measMethod;
+    return usonar_measSpecs[specNumber].measMethod;
   }
 
 
-  // Trigger the given ultrasonic sonar unit
+  // Trigger the given ultrasonic sonar in the given spec table entry
   // The sonar unit number is given to this routine as written on PC board
   // This routine shields the caller from knowing the hardware pin
   //
@@ -301,31 +359,36 @@ class Loki_USonar {
   #define  USONAR_TRIG_PRE_LOW_US   4     // Time to hold trig line low b4 start
   #define  USONAR_TRIG_HIGH_US     20     // Time to hold trigger line high
 
-  unsigned long  measTrigger(int sonarUnit)
+  unsigned long  measTrigger(int specNumber)
   {
     unsigned long triggerTime;
+
+    if (isMeasSpecNumValid(specNumber) < 0) {
+      return 0;
+    }
+
     triggerTime = USONAR_GET_MICROSECONDS | 1;   // set lsb, zero is an error code
 
     // Trap out custom trigger pin modes (Ugly but necessary)
-    if (usonar_measSpecs[sonarUnit].measMethod == US_MEAS_METHOD_T01_PG2) {
+    if (usonar_measSpecs[specNumber].measMethod == US_MEAS_METHOD_T01_PG2) {
       PORTG &= 0xfb;
       delayMicroseconds(USONAR_TRIG_PRE_LOW_US);
       PORTG |= 0x04;
       delayMicroseconds(USONAR_TRIG_HIGH_US);
       PORTG &= 0xfb;
-    } else if (usonar_measSpecs[sonarUnit].measMethod == US_MEAS_METHOD_T10_PJ7) {
+    } else if (usonar_measSpecs[specNumber].measMethod == US_MEAS_METHOD_T10_PJ7) {
       PORTJ &= 0x7f;
       delayMicroseconds(USONAR_TRIG_PRE_LOW_US);
       PORTJ |= 0x80;
       delayMicroseconds(USONAR_TRIG_HIGH_US);
       PORTJ &= 0x7f;
-    } else if (usonar_measSpecs[sonarUnit].measMethod == US_MEAS_METHOD_T15_PG4) {
+    } else if (usonar_measSpecs[specNumber].measMethod == US_MEAS_METHOD_T15_PG4) {
       PORTG &= 0xef;
       delayMicroseconds(USONAR_TRIG_PRE_LOW_US);
       PORTG |= 0x10;
       delayMicroseconds(USONAR_TRIG_HIGH_US);
       PORTG &= 0xef;
-    } else if (usonar_measSpecs[sonarUnit].measMethod == US_MEAS_METHOD_T16_PG3) {
+    } else if (usonar_measSpecs[specNumber].measMethod == US_MEAS_METHOD_T16_PG3) {
       PORTG &= 0xf7;
       delayMicroseconds(USONAR_TRIG_PRE_LOW_US);
       PORTG |= 0x08;
@@ -333,7 +396,7 @@ class Loki_USonar {
       PORTG &= 0xf7;
     } else {
       // Non-custom modes just lookup digital line and do trigger with that
-      int trigPin = getMeasTriggerPin(sonarUnit);
+      int trigPin = getMeasTriggerPin(specNumber);
       if (trigPin == 0) {
         return 0;
       }
@@ -358,6 +421,8 @@ class Loki_USonar {
 
   // Trigger and readback delay from an HC-SR04 Ulrasonic Sonar
   //
+  // NOTE: This is one of a few calls that take in Sonar Unit Number!
+  //
   // Returns distance in meters
   //    0.0 = Bad measurement result (unclear fault of sensor)
   //   -1.0 =  invalid sensor number
@@ -369,12 +434,18 @@ class Loki_USonar {
   float inlineReadMeters(int sonarUnit) {
     float distInMeters = 0.0;
     unsigned long startTics;
-    int echoPin = getEchoDetectPin(sonarUnit);
+
+    int specNumber = unitNumToMeasSpecNum(sonarUnit);
+    if (specNumber < 0) {
+        return -9;              // Invalid sonar unit number
+    }
+
+    int echoPin = getEchoDetectPin(specNumber);
     if (echoPin < 0) {
         return -2.0;            // sensor number not supported yet for inline read
     }
 
-    startTics = measTrigger(sonarUnit);    // Trigger the sonar unit to measure
+    startTics = measTrigger(specNumber);    // Trigger the sonar unit to measure
     if (startTics == 0) {
         return -1.0;            // Bad sensor number or not supported yet
     }
