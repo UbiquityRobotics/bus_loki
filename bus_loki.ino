@@ -3,6 +3,7 @@
 #include <Frame_Buffer.h>
 #include <bus_server.h>
 #include <bus_loki_sonar.h>
+#include <RAB_Sonar.h>
 
 #define BUS_LOKI_PROGRAM_BLINK 0
 #define BUS_LOKI_PROGRAM_MOTOR 1
@@ -21,15 +22,19 @@
 
 // Setup control for debug printouts that we can manage as a remote command
 // These are binary bits in a flag word that can be viewed from other modules
-static int system_debug_flags = DBG_FLAG_UART_SETUP | DBG_FLAG_PARAMETER_SETUP;
+//static int system_debug_flags = DBG_FLAG_UART_SETUP | DBG_FLAG_PARAMETER_SETUP;
 
 
-int system_debug_flags_get() {
-  return system_debug_flags;
-}
-void system_debug_flags_set(int flags) {
-  system_debug_flags = flags;
-}
+//int system_debug_flags_get() {
+//  return system_debug_flags;
+//}
+//void system_debug_flags_set(int flags) {
+//  system_debug_flags = flags;
+//}
+
+// Trigger and readback delay from an HC-SR04 Ulrasonic Sonar, return in meters
+extern float usonar_inlineReadMeters(int sonarUnit);
+extern int   usonar_getLastDistInMm(int sonarUnit);
 
 class Loki_Motor_Encoder : Bus_Motor_Encoder {
  public:
@@ -44,6 +49,38 @@ class Loki_Motor_Encoder : Bus_Motor_Encoder {
   UByte _enable_pin;
   Integer *_encoder_pointer;
 };
+
+class Loki_RAB_Sonar : RAB_Sonar {
+ public:
+  Loki_RAB_Sonar();
+  virtual Short ping_get(UByte sonar);
+  virtual Short system_debug_flags_get();
+  virtual void system_debug_flags_set(Short system_flags);
+  virtual UByte sonars_count_get();
+ private:
+  Short system_debug_flags_;
+};
+
+Loki_RAB_Sonar::Loki_RAB_Sonar() {
+  // Do nothing:
+}
+
+Short Loki_RAB_Sonar::ping_get(UByte sonar) {
+  // FIXME: Do this in fixed point!!!
+  return (Short)(usonar_getLastDistInMm(sonar)/(float)(10.0) + (float)(0.5));
+}
+
+Short Loki_RAB_Sonar::system_debug_flags_get() {
+  return system_debug_flags_;
+}
+
+void Loki_RAB_Sonar::system_debug_flags_set(Short system_debug_flags) {
+  system_debug_flags_ = system_debug_flags;
+}
+
+UByte Loki_RAB_Sonar::sonars_count_get() {
+  return 16;
+}
 
 // Encoder buffer:
 #define BUFFER_POWER 8
@@ -139,10 +176,12 @@ Loki_Motor_Encoder left_motor_encoder(motor1_input1_pin, motor1_input2_pin,
  motor1_enable_pin, &encoder1);
 Loki_Motor_Encoder right_motor_encoder(motor2_input1_pin, motor2_input2_pin,
  motor2_enable_pin, &encoder2);
+Loki_RAB_Sonar loki_rab_sonar;
 
 Bridge bridge(&avr_uart0, &avr_uart1, &avr_uart0, &bus_slave,
  (Bus_Motor_Encoder *)&left_motor_encoder,
- (Bus_Motor_Encoder *)&right_motor_encoder);
+ (Bus_Motor_Encoder *)&right_motor_encoder,
+ (RAB_Sonar *)&loki_rab_sonar);
 
 void leds_byte_write(char byte) {
   //digitalWrite(led0_pin, (byte & 1) ? LOW : HIGH);
@@ -655,7 +694,8 @@ void loop() {
         case USONAR_STATE_MEAS_START: {
           int queueLevel = 0;
           queueLevel = usonar.getQueueLevel();  // In our scheme we expect this to always be 0
-          if ((queueLevel != 0) && (system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG)) {
+          if ((queueLevel != 0) &&
+	   (loki_rab_sonar.system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG)) {
             host_uart->print((Text)" Sonar WARNING at meas cycle ");
             host_uart->integer_print(usonar.measSpecNumToUnitNum(cycleNum));
             host_uart->print((Text)" start: Queue had ");
@@ -666,7 +706,7 @@ void loop() {
             currentDelayData2 = 0;
           } else {
             // Indicate we are going to start next sonar measurement cycle
-            if (system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
+            if (loki_rab_sonar.system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
               host_uart->print((Text)" Sonar meas cycle ");
               host_uart->integer_print(usonar.measSpecNumToUnitNum(cycleNum));
               host_uart->print((Text)" starting.\r\n");
@@ -680,7 +720,7 @@ void loop() {
 
             fullCycleCounts+= 1;
             if (((fullCycleCounts & (unsigned long)(0x7)) == 0) && 
-               (system_debug_flags_get() & DBG_FLAG_USENSOR_ERR_DEBUG)) {
+               (loki_rab_sonar.system_debug_flags_get() & DBG_FLAG_USENSOR_ERR_DEBUG)) {
               host_uart->print((Text)" Sonar ERR Counters: ");
               for (int ix = 0; ix < ERR_COUNTERS_MAX ; ix++) {
                 host_uart->integer_print(errCounters[ix]);
@@ -689,7 +729,7 @@ void loop() {
               host_uart->print((Text)"\r\n");
             }
 
-            if (system_debug_flags_get() & DBG_FLAG_USENSOR_RESULTS) {
+            if (loki_rab_sonar.system_debug_flags_get() & DBG_FLAG_USENSOR_RESULTS) {
                char  outBuf[32];
                float distInCm;
                host_uart->print((Text)" Sonars: ");
@@ -732,7 +772,7 @@ void loop() {
               break;
             default:
               // This is REALLY a huge coding issue or problem in usonar_measSpec
-              if (system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
+              if (loki_rab_sonar.system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
                 host_uart->string_print((Text)" Sonar ERROR in code for intRegNum!\r\n");
               }
               break;
@@ -742,7 +782,7 @@ void loop() {
           // Trigger the sonar unit to start measuring and return start time
           sonarMeasTriggerTime = usonar.measTrigger(cycleNum);
 
-          if (system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
+          if (loki_rab_sonar.system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
             char longStr[32];
             ltoa(sonarMeasTriggerTime, longStr,10);
             host_uart->string_print((Text)" Sonar start Sample: ");
@@ -770,7 +810,7 @@ void loop() {
           // Look for counter to go 'around' and ignore this one. 
           // Unsigned math so we can get HUGE number
           if (sonarMeasTriggerTime > rightNow) {
-            if (system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
+            if (loki_rab_sonar.system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
               host_uart->print((Text)" Sonar system tic rollover in meas wait. \r\n");
             }
             usonarSampleState = USONAR_STATE_MEAS_START;
@@ -786,7 +826,7 @@ void loop() {
 
 
           // OK we think we have measurement data so check for and get edge data
-          if (system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
+          if (loki_rab_sonar.system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
             char longStr[32];
             host_uart->string_print((Text)" Sonar meas from: ");
             ltoa(sonarMeasTriggerTime, longStr,10);
@@ -807,7 +847,7 @@ void loop() {
             } else {
               errCounters[2] += 1;       //  If this happens something is very wrong
             }
-            if (system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
+            if (loki_rab_sonar.system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
               host_uart->print((Text)" Sonar ");
               host_uart->integer_print((int)usonar.measSpecNumToUnitNum(cycleNum));
               host_uart->print((Text)" in cycle ");
@@ -836,7 +876,7 @@ void loop() {
 
           echoPulseWidth =  currentDelayData2 - currentDelayData1; // The 'real' meas data in uSec
 
-          if (system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
+          if (loki_rab_sonar.system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
             char longStr[32];
             host_uart->string_print((Text)" Sonar edges from: ");
             ltoa(currentDelayData1, longStr,10);
@@ -850,7 +890,7 @@ void loop() {
           if (currentDelayData1 > currentDelayData2) {
             // This is another form of rollover every 70 minutes or so but just 
             errCounters[3] += 1;       // debug tally of errors
-            if (system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
+            if (loki_rab_sonar.system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
               host_uart->print((Text)" Sonar sys tic rollover OR edges reversed\r\n");
               // special value as error type indicator but as things mature we should NOT stuff this
               sonarDistancesInMeters[usonar.measSpecNumToUnitNum(cycleNum)] = 
@@ -861,7 +901,7 @@ void loop() {
 
           } else if (echoPulseWidth > USONAR_MEAS_TOOLONG) {  
             errCounters[4] += 1;       // debug tally of errors
-            if (system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
+            if (loki_rab_sonar.system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
               host_uart->print((Text)" Sonar meas result over the MAX\r\n");
             }
 
@@ -875,7 +915,7 @@ void loop() {
               if (echoPulseWidth > USONAR_ECHO_MAX) {
                // We are going to cap this as a form of non-expected result so can it
                 errCounters[5] += 1;       // debug tally of errors
-                if (system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
+                if (loki_rab_sonar.system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
                   char longStr[32];
                   ltoa(echoPulseWidth, longStr,10);
                   host_uart->print((Text)" Sonar echo delay of ");
@@ -893,7 +933,7 @@ void loop() {
               float distanceInMeters = usonar.echoUsToMeters(echoPulseWidth);
               sonarDistancesInMeters[usonar.measSpecNumToUnitNum(cycleNum)] = distanceInMeters;
 
-              if (system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
+              if (loki_rab_sonar.system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
                 char outBuf2[32];
                 float distInCm;
                 int   echoCm;
@@ -926,7 +966,7 @@ void loop() {
           waitTimer = curTicks - sonarMeasTriggerTime; 
 
           if (sonarMeasTriggerTime > curTicks) {   // Unsigned math so we can get HUGE number
-            if (system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
+            if (loki_rab_sonar.system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
               host_uart->print((Text)" Sonar system timer rollover in meas spacing.\r\n");
             }
             usonarSampleState = USONAR_STATE_MEAS_START;
