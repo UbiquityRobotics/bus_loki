@@ -961,10 +961,13 @@ Loki_Motor_Encoder::Loki_Motor_Encoder(UByte input1_pin, UByte input2_pin,
 }
 
 void Loki_Motor_Encoder::pwm_set(Byte pwm) {
-  static const UShort friction_pwm = 5;
+  static const UShort friction_pwm = 1;    // Was 5 for yellow motors
   UByte input1 = LOW;
   UByte input2 = LOW;
   UShort enable_pwm = 0;
+
+  // We convert the signed 8-bit value for PWM range of 0-255
+  // and setup the motor direction bits also from sign of input value
   if (pwm > 0) {
     enable_pwm = ((UShort)pwm << 1) + friction_pwm;
     input1 = HIGH;
@@ -972,8 +975,8 @@ void Loki_Motor_Encoder::pwm_set(Byte pwm) {
     enable_pwm = (((UShort)(-pwm)) << 1) + friction_pwm;
     input2 = HIGH;
   }
-  if (enable_pwm > 255) {
-    enable_pwm = 255;
+  if (enable_pwm > 255) {  
+    enable_pwm = 255;       // Cap PWM value to 255
   }
 
   // Set the direction pins and pulse the output:
