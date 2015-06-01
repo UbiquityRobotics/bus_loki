@@ -229,7 +229,6 @@ That should do it.
       <TD>PE4</TD>	<TD>6</TD>	<TD>MOTOR2_ENABLE</TD>	<TD>2</TD>
     </TR><TR>
       <TD>PE5</TD>	<TD>7</TD>	<TD>MOTOR2_INPUT2</TD>	<TD>3</TD>
-
     </TR><TR>
       <TD>PH3</TD>	<TD>15</TD>	<TD>SERVO1</TD>		<TD>6</TD>
     </TR><TR>
@@ -238,7 +237,6 @@ That should do it.
       <TD>PH5</TD>	<TD>17</TD>	<TD>SERVO3</TD>		<TD>8</TD>
     </TR><TR>
       <TD>PH6</TD>	<TD>18</TD>	<TD>SERVO4</TD>		<TD>9</TD>
-
     </TR><TR>
       <TD>PB1</TD>	<TD>20</TD>	<TD>SCK</TD>		<TD>52</TD>
     </TR><TR>
@@ -253,7 +251,6 @@ That should do it.
       <TD>PB6</TD>	<TD>25</TD>	<TD>ENCODER_L1</TD>	<TD>12</TD>
     </TR><TR>
       <TD>PB7</TD>	<TD>26</TD>	<TD>ENCODER_L2</TD>	<TD>13</TD>
-
     </TR><TR>
       <TD>PL0</TD>	<TD>35</TD>	<TD>S_TRIG14</TD>	<TD>49</TD>
     </TR><TR>
@@ -268,7 +265,6 @@ That should do it.
       <TD>PL5</TD>	<TD>40</TD>	<TD>MOTOR1_INPUT2</TD>	<TD>44</TD>
     </TR><TR>
       <TD>PL6</TD>	<TD>39</TD>	<TD>MOTOR1_ENABLE</TD>	<TD>45</TD>
-
     </TR><TR>
       <TD>PD0</TD>	<TD>43</TD>	<TD>SCL</TD>		<TD>21</TD>
     </TR><TR>
@@ -277,83 +273,76 @@ That should do it.
       <TD>PD2</TD>	<TD>45</TD>	<TD>UART1_RXD</TD>	<TD>19</TD>
     </TR><TR>
       <TD>PD3</TD>	<TD>46</TD>	<TD>UART1_TXD</TD>	<TD>18</TD>
-
     </TR><TR>
-      <TD>PG4</TD>	<TD>29<TD>	<TD>S_TRIG15</TD>	<TD>-</TD>
+      <TD>PG4</TD>	<TD>29</TD>	<TD>S_TRIG15</TD>	<TD>-</TD>
     </TR><TR>
-      <TD>PG3</TD>	<TD>28<TD>	<TD>S_TRIG16</TD>	<TD>-</TD>
+      <TD>PG3</TD>	<TD>28</TD>	<TD>S_TRIG16</TD>	<TD>-</TD>
     </TR><TR>
-      <TD>PG2</TD>	<TD>70<TD>	<TD>S_TRIG1</TD>	<TD>39</TD>
+      <TD>PG2</TD>	<TD>70</TD>	<TD>S_TRIG1</TD>	<TD>39</TD>
     </TR><TR>
-      <TD>PG1</TD>	<TD>52<TD>	<TD>BUS_STANDBY</TD>	<TD>40</TD>
-
+      <TD>PG1</TD>	<TD>52</TD>	<TD>BUS_STANDBY</TD>	<TD>40</TD>
     </TR><TR>
-      <TD>PK0</TD>	<TD>89<TD>	<TD>S_ECHO8</TD>	<TD>A8</TD>
+      <TD>PK0</TD>	<TD>89</TD>	<TD>S_ECHO8</TD>	<TD>A8</TD>
     </TR><TR>
-      <TD>PK1</TD>	<TD>88<TD>	<TD>S_ECHO7</TD>	<TD>A9</TD>
+      <TD>PK1</TD>	<TD>88</TD>	<TD>S_ECHO7</TD>	<TD>A9</TD>
     </TR><TR>
-      <TD>PK2</TD>	<TD>87<TD>	<TD>S_ECHO6</TD>	<TD>A10</TD>
+      <TD>PK2</TD>	<TD>87</TD>	<TD>S_ECHO6</TD>	<TD>A10</TD>
     </TR><TR>
-      <TD>PK3</TD>	<TD>86<TD>	<TD>S_ECHO5</TD>	<TD>A11</TD>
+      <TD>PK3</TD>	<TD>86</TD>	<TD>S_ECHO5</TD>	<TD>A11</TD>
     </TR><TR>
-      <TD>PK4</TD>	<TD>85<TD>	<TD>S_ECHO4</TD>	<TD>A12</TD>
+      <TD>PK4</TD>	<TD>85</TD>	<TD>S_ECHO4</TD>	<TD>A12</TD>
     </TR><TR>
-      <TD>PK5</TD>	<TD>84<TD>	<TD>S_ECHO3</TD>	<TD>A13</TD>
+      <TD>PK5</TD>	<TD>84</TD>	<TD>S_ECHO3</TD>	<TD>A13</TD>
     </TR><TR>
-      <TD>PK6</TD>	<TD>83<TD>	<TD>S_ECHO2</TD>	<TD>A14</TD>
+      <TD>PK6</TD>	<TD>83</TD>	<TD>S_ECHO2</TD>	<TD>A14</TD>
     </TR><TR>
-      <TD>PK7</TD>	<TD>82<TD>	<TD>S_ECHO1</TD>	<TD>A15</TD>
-
+      <TD>PK7</TD>	<TD>82</TD>	<TD>S_ECHO1</TD>	<TD>A15</TD>
     </TR><TR>
-      <TD>PA0</TD>	<TD>78<TD>	<TD>S_TRIG2</TD>	<TD>22</TD>
+      <TD>PA0</TD>	<TD>78</TD>	<TD>S_TRIG2</TD>	<TD>22</TD>
     </TR><TR>
-      <TD>PA1</TD>	<TD>77<TD>	<TD>S_TRIG3</TD>	<TD>23</TD>
+      <TD>PA1</TD>	<TD>77</TD>	<TD>S_TRIG3</TD>	<TD>23</TD>
     </TR><TR>
-      <TD>PA2</TD>	<TD>76<TD>	<TD>S_TRIG4</TD>	<TD>24</TD>
+      <TD>PA2</TD>	<TD>76</TD>	<TD>S_TRIG4</TD>	<TD>24</TD>
     </TR><TR>
-      <TD>PA3</TD>	<TD>75<TD>	<TD>S_TRIG5</TD>	<TD>25</TD>
+      <TD>PA3</TD>	<TD>75</TD>	<TD>S_TRIG5</TD>	<TD>25</TD>
     </TR><TR>
-      <TD>PA4</TD>	<TD>74<TD>	<TD>S_TRIG6</TD>	<TD>26</TD>
+      <TD>PA4</TD>	<TD>74</TD>	<TD>S_TRIG6</TD>	<TD>26</TD>
     </TR><TR>
-      <TD>PA5</TD>	<TD>73<TD>	<TD>S_TRIG7</TD>	<TD>27</TD>
+      <TD>PA5</TD>	<TD>73</TD>	<TD>S_TRIG7</TD>	<TD>27</TD>
     </TR><TR>
-      <TD>PA6</TD>	<TD>72<TD>	<TD>S_TRIG8</TD>	<TD>28</TD>
+      <TD>PA6</TD>	<TD>72</TD>	<TD>S_TRIG8</TD>	<TD>28</TD>
     </TR><TR>
-      <TD>PA7</TD>	<TD>71<TD>	<TD>S_TRIG9</TD>	<TD>29</TD>
-
+      <TD>PA7</TD>	<TD>71</TD>	<TD>S_TRIG9</TD>	<TD>29</TD>
     </TR><TR>
-      <TD>PJ7</TD>	<TD>79<TD>	<TD>S_TRIG10</TD>	<TD>-</TD>
+      <TD>PJ7</TD>	<TD>79</TD>	<TD>S_TRIG10</TD>	<TD>-</TD>
     </TR><TR>
-      <TD>PJ6</TD>	<TD>69<TD>	<TD>S_ECHO9</TD>	<TD>-</TD>
+      <TD>PJ6</TD>	<TD>69</TD>	<TD>S_ECHO9</TD>	<TD>-</TD>
     </TR><TR>
-      <TD>PJ5</TD>	<TD>68<TD>	<TD>S_ECHO10</TD>	<TD>-</TD>
+      <TD>PJ5</TD>	<TD>68</TD>	<TD>S_ECHO10</TD>	<TD>-</TD>
     </TR><TR>
-      <TD>PJ4</TD>	<TD>67<TD>	<TD>S_ECHO11</TD>	<TD>-</TD>
+      <TD>PJ4</TD>	<TD>67</TD>	<TD>S_ECHO11</TD>	<TD>-</TD>
     </TR><TR>
-      <TD>PJ3</TD>	<TD>67<TD>	<TD>S_ECHO12</TD>	<TD>-</TD>
+      <TD>PJ3</TD>	<TD>67</TD>	<TD>S_ECHO12</TD>	<TD>-</TD>
     </TR><TR>
-      <TD>PJ2</TD>	<TD>65<TD>	<TD>S_ECHO13_14</TD>	<TD>-</TD>
+      <TD>PJ2</TD>	<TD>65</TD>	<TD>S_ECHO13_14</TD>	<TD>-</TD>
     </TR><TR>
-      <TD>PJ1</TD>	<TD>64<TD>	<TD>S_ECHO15_16</TD>	<TD>14</TD>
-
+      <TD>PJ1</TD>	<TD>64</TD>	<TD>S_ECHO15_16</TD>	<TD>14</TD>
     </TR><TR>
-      <TD>PC7</TD>	<TD>60<TD>	<TD>LED8</TD>	<TD>30</TD>
+      <TD>PC7</TD>	<TD>60</TD>	<TD>LED8</TD>	<TD>30</TD>
     </TR><TR>
-      <TD>PC6</TD>	<TD>59<TD>	<TD>LED7</TD>	<TD>31</TD>
+      <TD>PC6</TD>	<TD>59</TD>	<TD>LED7</TD>	<TD>31</TD>
     </TR><TR>
-      <TD>PC5</TD>	<TD>58<TD>	<TD>LED6</TD>	<TD>32</TD>
+      <TD>PC5</TD>	<TD>58</TD>	<TD>LED6</TD>	<TD>32</TD>
     </TR><TR>
-      <TD>PC4</TD>	<TD>57<TD>	<TD>LED5</TD>	<TD>33</TD>
+      <TD>PC4</TD>	<TD>57</TD>	<TD>LED5</TD>	<TD>33</TD>
     </TR><TR>
-      <TD>PC3</TD>	<TD>56<TD>	<TD>LED4</TD>	<TD>34</TD>
+      <TD>PC3</TD>	<TD>56</TD>	<TD>LED4</TD>	<TD>34</TD>
     </TR><TR>
-      <TD>PC2</TD>	<TD>55<TD>	<TD>LED3</TD>	<TD>35</TD>
+      <TD>PC2</TD>	<TD>55</TD>	<TD>LED3</TD>	<TD>35</TD>
     </TR><TR>
-      <TD>PC1</TD>	<TD>54<TD>	<TD>LED2</TD>	<TD>36</TD>
+      <TD>PC1</TD>	<TD>54</TD>	<TD>LED2</TD>	<TD>36</TD>
     </TR><TR>
-      <TD>PC0</TD>	<TD>53<TD>	<TD>LED1</TD>	<TD>37</TD>
-
-
+      <TD>PC0</TD>	<TD>53</TD>	<TD>LED1</TD>	<TD>37</TD>
     </TR><TR>
     </TR><TR>
     </TR>
