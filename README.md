@@ -138,7 +138,8 @@ Perform the following steps:
 
         sudo apt-get install arduino
 
-2. Start the Arduino IDE.
+2. Start the Arduino IDE.  (You may need to run it as `sudo arduino`
+   in order to give `avrdude` access to the USB device.)
 
 3. Using the [Tools] pull down menu,
    select [Board] => [Arduino Mega 2560 or Mega ADK]
@@ -162,6 +163,7 @@ When all of the dust settles, you should be able to do the following:
         make
         make upload       # Read below for more about uploading
 
+(Random comment: Make sure that C10 is installed.)
 
 ## Compiling the Firmware
 
