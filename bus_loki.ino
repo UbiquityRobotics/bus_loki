@@ -1,8 +1,9 @@
 // Copyright (c) 2015 by Wayne C. Gramlich.  All rights reserved.
+
 #include <Bus_Slave.h>
 #include <Frame_Buffer.h>
 #include <bus_server.h>
-#include <bus_loki_sonar.h>
+#include <Sonar.h>
 #include <RAB_Sonar.h>
 
 #define BUS_LOKI_PROGRAM_BLINK 0
@@ -408,7 +409,7 @@ ISR(PCINT2_vect) {
 
 
 // Setup instance of class for Loki Ultrasonic Sensor support
-static Loki_USonar usonar;
+static Sonar usonar;
 static int  cycleNum;           // The measurement cycle number (does not have to be sonar unit)
 static int  usonarSampleState;
 static unsigned long sonarMeasTriggerTime;
