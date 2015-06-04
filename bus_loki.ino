@@ -52,7 +52,7 @@ class Loki_Motor_Encoder : Bus_Motor_Encoder {
 
 class Loki_RAB_Sonar : RAB_Sonar {
  public:
-  Loki_RAB_Sonar();
+  Loki_RAB_Sonar(UART *debug_uart);
   virtual Short ping_get(UByte sonar);
   virtual Short system_debug_flags_get();
   virtual void system_debug_flags_set(Short system_flags);
@@ -61,8 +61,8 @@ class Loki_RAB_Sonar : RAB_Sonar {
   Short system_debug_flags_;
 };
 
-Loki_RAB_Sonar::Loki_RAB_Sonar() {
-  // Do nothing:
+Loki_RAB_Sonar::Loki_RAB_Sonar(UART *debug_uart) : RAB_Sonar(debug_uart) {
+  system_debug_flags_ = 0;
 }
 
 Short Loki_RAB_Sonar::ping_get(UByte sonar) {
@@ -176,7 +176,7 @@ Loki_Motor_Encoder left_motor_encoder(motor1_input1_pin, motor1_input2_pin,
  motor1_enable_pin, &encoder1);
 Loki_Motor_Encoder right_motor_encoder(motor2_input1_pin, motor2_input2_pin,
  motor2_enable_pin, &encoder2);
-Loki_RAB_Sonar loki_rab_sonar;
+Loki_RAB_Sonar loki_rab_sonar(debug_uart);
 
 Bridge bridge(&avr_uart0, &avr_uart1, &avr_uart0, &bus_slave,
  (Bus_Motor_Encoder *)&left_motor_encoder,
