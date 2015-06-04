@@ -20,22 +20,8 @@
 // Make sure we are using the ROS Arduino Bridge as configured for LOKI:
 #define TEST TEST_RAB_LOKI
 
-
-// Setup control for debug printouts that we can manage as a remote command
-// These are binary bits in a flag word that can be viewed from other modules
-//static int system_debug_flags = DBG_FLAG_UART_SETUP | DBG_FLAG_PARAMETER_SETUP;
-
-
-//int system_debug_flags_get() {
-//  return system_debug_flags;
-//}
-//void system_debug_flags_set(int flags) {
-//  system_debug_flags = flags;
-//}
-
 // Trigger and readback delay from an HC-SR04 Ulrasonic Sonar, return in meters
 extern float usonar_inlineReadMeters(int sonarUnit);
-extern int   usonar_getLastDistInMm(int sonarUnit);
 
 class Loki_Motor_Encoder : Bus_Motor_Encoder {
  public:
@@ -62,26 +48,9 @@ class Loki_RAB_Sonar : RAB_Sonar {
   Short system_debug_flags_;
 };
 
-Loki_RAB_Sonar::Loki_RAB_Sonar(UART *debug_uart) : RAB_Sonar(debug_uart) {
-  system_debug_flags_ = 0;
-}
 
-Short Loki_RAB_Sonar::ping_get(UByte sonar) {
-  // FIXME: Do this in fixed point!!!
-  return (Short)(usonar_getLastDistInMm(sonar)/(float)(10.0) + (float)(0.5));
-}
 
-Short Loki_RAB_Sonar::system_debug_flags_get() {
-  return system_debug_flags_;
-}
 
-void Loki_RAB_Sonar::system_debug_flags_set(Short system_debug_flags) {
-  system_debug_flags_ = system_debug_flags;
-}
-
-UByte Loki_RAB_Sonar::sonars_count_get() {
-  return 16;
-}
 
 // Encoder buffer:
 #define BUFFER_POWER 8
@@ -177,12 +146,14 @@ Loki_Motor_Encoder left_motor_encoder(motor1_input1_pin, motor1_input2_pin,
  motor1_enable_pin, &encoder1);
 Loki_Motor_Encoder right_motor_encoder(motor2_input1_pin, motor2_input2_pin,
  motor2_enable_pin, &encoder2);
-Loki_RAB_Sonar loki_rab_sonar(debug_uart);
+Loki_RAB_Sonar loki_rab_sonar((UART *)&debug_uart);
 
 Bridge bridge(&avr_uart0, &avr_uart1, &avr_uart0, &bus_slave,
  (Bus_Motor_Encoder *)&left_motor_encoder,
  (Bus_Motor_Encoder *)&right_motor_encoder,
  (RAB_Sonar *)&loki_rab_sonar);
+
+static Sonar usonar((UART *)debug_uart, (RAB_Sonar *)&loki_rab_sonar);
 
 void leds_byte_write(char byte) {
   //digitalWrite(led0_pin, (byte & 1) ? LOW : HIGH);
@@ -228,12 +199,6 @@ ISR(PCINT0_vect) {
 // Some in-memory history of last sample times and readings in meters
 // These tables are organized by sonar number and not by measurement cycle number
 // Also the index is the sonar number so entry [0] is zero
-unsigned long sonarSampleTimes[USONAR_MAX_UNITS+1];
-float         sonarDistancesInMeters[USONAR_MAX_UNITS+1];
-
-#define ERR_COUNTERS_MAX                 8
-int  errCounters[ERR_COUNTERS_MAX];
-unsigned long fullCycleCounts;
 
 
 // Define the circular queue members and indexes.
@@ -408,46 +373,33 @@ ISR(PCINT2_vect) {
 */
 
 
+Loki_RAB_Sonar::Loki_RAB_Sonar(UART *debug_uart) : RAB_Sonar(debug_uart) {
+  system_debug_flags_ = 0;
+}
+
+Short Loki_RAB_Sonar::ping_get(UByte sonar) {
+  // FIXME: Do this in fixed point!!!
+  return (Short)(usonar.getLastDistInMm(sonar)/(float)(10.0) + (float)(0.5));
+}
+
+Short Loki_RAB_Sonar::system_debug_flags_get() {
+  return system_debug_flags_;
+}
+
+void Loki_RAB_Sonar::system_debug_flags_set(Short system_debug_flags) {
+  system_debug_flags_ = system_debug_flags;
+}
+
+UByte Loki_RAB_Sonar::sonars_count_get() {
+  return 16;
+}
+
 // Setup instance of class for Loki Ultrasonic Sensor support
-static Sonar usonar;
-static int  cycleNum;           // The measurement cycle number (does not have to be sonar unit)
-static int  usonarSampleState;
-static unsigned long sonarMeasTriggerTime;
-static unsigned long currentDelayData1;
-static unsigned long currentDelayData2;
-
-// This is a way to make accessable using extern for backdoors to query read sensor distances
-// We avoid using our class that may have encapsulated this outside of this module
-int usonar_getLastDistInMm(int sonarUnit) {
-    if ((sonarUnit < 1) || (sonarUnit > USONAR_MAX_UNITS)) {
-        return -10;
-    }
-    return (int)(sonarDistancesInMeters[sonarUnit] * (float)1000.0);
-}
-float usonar_inlineReadMeters(int sonarUnit) {
-  return usonar.inlineReadMeters(sonarUnit);
-}
-
-
 // The *setup*() routine runs once when you press reset:
 void setup() {
 
-  usonarSampleState = USONAR_STATE_MEAS_START;
-  cycleNum = 0;
-  sonarMeasTriggerTime = 0;
-  currentDelayData1 = (unsigned long)0;
-  currentDelayData2 = (unsigned long)0;
   usonar_producerIndex = 0;
   usonar_consumerIndex = 0;
-  for (int ix = 0; ix < USONAR_MAX_UNITS; ix++) {
-    sonarDistancesInMeters[ix] = (float)(0.0);
-    sonarSampleTimes[ix] = (unsigned long)0;
-  }
-
-  fullCycleCounts = 0;
-  for (int ix = 0; ix < ERR_COUNTERS_MAX ; ix++) {
-    errCounters[ix] = 0;
-  }
 
   // Initialize pin directions:
   pinMode(encoder_l1_pin, INPUT);
@@ -685,304 +637,7 @@ void loop() {
 	encoder1_state = (unsigned char)(state_transition & 0x7);
       }
 
-      // -----------------------------------------------------------------
-      // Deal with sampling the sonar ultrasonic range sensors
-      //
-      // We cycle through entries in the measurement spec table using cycleNum
-      // Most calls accept measurement spec table entry number NOT sonar unit number.
-      //
-      switch (usonarSampleState) {
-        case USONAR_STATE_MEAS_START: {
-          int queueLevel = 0;
-          queueLevel = usonar.getQueueLevel();  // In our scheme we expect this to always be 0
-          if ((queueLevel != 0) &&
-	   (loki_rab_sonar.system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG)) {
-            host_uart->print((Text)" Sonar WARNING at meas cycle ");
-            host_uart->integer_print(usonar.measSpecNumToUnitNum(cycleNum));
-            host_uart->print((Text)" start: Queue had ");
-            host_uart->integer_print(queueLevel);
-            host_uart->print((Text)" edges! \r\n");
-            usonar.flushQueue();
-            currentDelayData1 = 0;                // Reset the sample gathering values for this run
-            currentDelayData2 = 0;
-          } else {
-            // Indicate we are going to start next sonar measurement cycle
-            if (loki_rab_sonar.system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
-              host_uart->print((Text)" Sonar meas cycle ");
-              host_uart->integer_print(usonar.measSpecNumToUnitNum(cycleNum));
-              host_uart->print((Text)" starting.\r\n");
-            }
-          }
-
-          cycleNum += 1;     // Bump to next entry in our measurement spec table 
-          if (cycleNum > USONAR_MAX_SPECS) 
-            {
-            cycleNum = 0;
-
-            fullCycleCounts+= 1;
-            if (((fullCycleCounts & (unsigned long)(0x7)) == 0) && 
-               (loki_rab_sonar.system_debug_flags_get() & DBG_FLAG_USENSOR_ERR_DEBUG)) {
-              host_uart->print((Text)" Sonar ERR Counters: ");
-              for (int ix = 0; ix < ERR_COUNTERS_MAX ; ix++) {
-                host_uart->integer_print(errCounters[ix]);
-                host_uart->print((Text)" ");
-              }
-              host_uart->print((Text)"\r\n");
-            }
-
-            if (loki_rab_sonar.system_debug_flags_get() & DBG_FLAG_USENSOR_RESULTS) {
-               char  outBuf[32];
-               float distInCm;
-               host_uart->print((Text)" Sonars: ");
-               for (int sonarUnit = 1; sonarUnit <= USONAR_MAX_UNITS ; sonarUnit++) {
-                  distInCm = (float)(usonar_getLastDistInMm(sonarUnit))/(float)(10.0);
-                  if (distInCm > USONAR_MAX_DIST_CM) {
-                    distInCm = USONAR_MAX_DIST_CM;      // graceful hard cap
-                  }
-                  
-                  dtostrf(distInCm, 3, 1, outBuf);
-                  host_uart->string_print((Text)outBuf);
-                  host_uart->string_print((Text)" ");
-               }
-               host_uart->string_print((Text)"\r\n");
-            }
-          }
-
-          // Skip any unit that will not work with PinChange interrupt
-          if ((usonar.getMeasSpec(cycleNum) & US_MEAS_METHOD_PCINT) == 0)  {
-            // This unit will not work so just skip it and do next on on next pass
-            break;
-          }
-
-          // Start the trigger for this sensor and enable interrupts
-          #ifdef USONAR_ULTRA_FAST_ISR
-          usonar_producerIndex = 0;    // For ultra-fast we only gather 2 and reset queue each time
-          usonar_consumerIndex = 0;    
-          #endif
-
-          // Enable this units pin change interrupt then enable global ints for pin changes
-          PCIFR = 0x06;		// This clears any pending pin change ints
-          switch (usonar.getInterruptMaskRegNumber(cycleNum)) {
-            case 1:
-              PCMSK2 = 0;
-              PCMSK1 = usonar.getInterruptBit(cycleNum);
-              break;
-            case 2:
-              PCMSK1 = 0;
-              PCMSK2 = usonar.getInterruptBit(cycleNum);
-              break;
-            default:
-              // This is REALLY a huge coding issue or problem in usonar_measSpec
-              if (loki_rab_sonar.system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
-                host_uart->string_print((Text)" Sonar ERROR in code for intRegNum!\r\n");
-              }
-              break;
-          } 
-          SREG |= _BV(7);
-         
-          // Trigger the sonar unit to start measuring and return start time
-          sonarMeasTriggerTime = usonar.measTrigger(cycleNum);
-
-          if (loki_rab_sonar.system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
-            char longStr[32];
-            ltoa(sonarMeasTriggerTime, longStr,10);
-            host_uart->string_print((Text)" Sonar start Sample: ");
-            host_uart->integer_print(usonar.measSpecNumToUnitNum(cycleNum));
-            host_uart->string_print((Text)" at ");
-            host_uart->string_print((Text)longStr);
-            host_uart->string_print((Text)"us\r\n");
-          }
-
-          usonarSampleState = USONAR_STATE_WAIT_FOR_MEAS;
-          }
-          break;
-
-        case USONAR_STATE_WAIT_FOR_MEAS: {
-          // wait max time to ensure both edges get seen for realistic detection max
-          //
-          // If the sonar is blocked then these units can take about 200ms for edge pulse
-          // We will time out well before that and because we use a single edge detect
-          // the long sensor will be effectively ignored for several following measurements.
-          unsigned long measCycleTime;    // Time so far waiting for this measurement
-          unsigned long rightNow;
-
-          rightNow = USONAR_GET_MICROSECONDS;
-
-          // Look for counter to go 'around' and ignore this one. 
-          // Unsigned math so we can get HUGE number
-          if (sonarMeasTriggerTime > rightNow) {
-            if (loki_rab_sonar.system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
-              host_uart->print((Text)" Sonar system tic rollover in meas wait. \r\n");
-            }
-            usonarSampleState = USONAR_STATE_MEAS_START;
-            break;
-          }
-
-          measCycleTime = rightNow - sonarMeasTriggerTime; 
-
-          // If meas timer not done break on through till next pass
-          if (measCycleTime < USONAR_MEAS_TIME)     {   
-            break;     // Still waiting for measurement
-          }
-
-
-          // OK we think we have measurement data so check for and get edge data
-          if (loki_rab_sonar.system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
-            char longStr[32];
-            host_uart->string_print((Text)" Sonar meas from: ");
-            ltoa(sonarMeasTriggerTime, longStr,10);
-            host_uart->string_print((Text)longStr);
-            host_uart->string_print((Text)"us to: ");
-            ltoa(rightNow, longStr,10);
-            host_uart->string_print((Text)longStr);
-            host_uart->string_print((Text)"us\r\n");
-          }
-
-          int edgeCount = usonar.getQueueLevel();
-          if (edgeCount != 2) {
-            // We expect exactly two edges.  If not we abort this meas cycle
-            if (edgeCount == 0) {
-              errCounters[0] += 1;       //  Most likely defective or broken/flakey wiring
-            } else if (edgeCount ==1) {
-              errCounters[1] += 1;       //  Most likely blocked sensor that waits 200ms
-            } else {
-              errCounters[2] += 1;       //  If this happens something is very wrong
-            }
-            if (loki_rab_sonar.system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
-              host_uart->print((Text)" Sonar ");
-              host_uart->integer_print((int)usonar.measSpecNumToUnitNum(cycleNum));
-              host_uart->print((Text)" in cycle ");
-              host_uart->integer_print(cycleNum);
-              host_uart->print((Text)" ERROR! meas saw ");
-              host_uart->integer_print(edgeCount);
-              host_uart->print((Text)" edges! \r\n");
-              // special value as error type indicator but as things mature we should NOT stuff this
-              sonarDistancesInMeters[usonar.measSpecNumToUnitNum(cycleNum)] = 
-                usonar.echoUsToMeters((USONAR_ECHO_MAX + USONAR_ECHO_ERR1));
-            }
-
-            usonarSampleState = USONAR_STATE_POST_SAMPLE_WAIT;   // move on to next sample cycle
-
-            break;   // break to wait till next pass and do next sensor
-          }
-
-          // We clear the individual pin interrupt enable bits now
-          //PCMSK1 = 0;
-          //PCMSK2 = 0;
-
-          // So lets (FINALLY) get the two edge samples
-          unsigned long echoPulseWidth;    // Time between edges
-          currentDelayData1 = usonar.pullQueueEntry();    // pull entry OR we get 0 if none yet
-          currentDelayData2 = usonar.pullQueueEntry();    // pull entry OR we get 0 if none yet
-
-          echoPulseWidth =  currentDelayData2 - currentDelayData1; // The 'real' meas data in uSec
-
-          if (loki_rab_sonar.system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
-            char longStr[32];
-            host_uart->string_print((Text)" Sonar edges from: ");
-            ltoa(currentDelayData1, longStr,10);
-            host_uart->string_print((Text)longStr);
-            host_uart->string_print((Text)"us to: ");
-            ltoa(currentDelayData2, longStr,10);
-            host_uart->string_print((Text)longStr);
-            host_uart->string_print((Text)"us \r\n");
-          }
-
-          if (currentDelayData1 > currentDelayData2) {
-            // This is another form of rollover every 70 minutes or so but just 
-            errCounters[3] += 1;       // debug tally of errors
-            if (loki_rab_sonar.system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
-              host_uart->print((Text)" Sonar sys tic rollover OR edges reversed\r\n");
-              // special value as error type indicator but as things mature we should NOT stuff this
-              sonarDistancesInMeters[usonar.measSpecNumToUnitNum(cycleNum)] = 
-                usonar.echoUsToMeters((unsigned long)USONAR_ECHO_MAX + (unsigned long)USONAR_ECHO_ERR2);
-            }
-
-            usonarSampleState = USONAR_STATE_POST_SAMPLE_WAIT;   // move on to next sample cycle
-
-          } else if (echoPulseWidth > USONAR_MEAS_TOOLONG) {  
-            errCounters[4] += 1;       // debug tally of errors
-            if (loki_rab_sonar.system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
-              host_uart->print((Text)" Sonar meas result over the MAX\r\n");
-            }
-
-          //  // special value as error type indicator but as things mature we should NOT stuff this
-          //  sonarDistancesInMeters[usonar.measSpecNumToUnitNum(cycleNum)] = 
-          //    usonar.echoUsToMeters((USONAR_ECHO_MAX + USONAR_ECHO_ERR3));
-            usonarSampleState = USONAR_STATE_POST_SAMPLE_WAIT;   // move on to next sample cycle
-
-          } else {
-              // Save our sample delay AND save our time we acquired the sample
-              if (echoPulseWidth > USONAR_ECHO_MAX) {
-               // We are going to cap this as a form of non-expected result so can it
-                errCounters[5] += 1;       // debug tally of errors
-                if (loki_rab_sonar.system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
-                  char longStr[32];
-                  ltoa(echoPulseWidth, longStr,10);
-                  host_uart->print((Text)" Sonar echo delay of ");
-                  host_uart->print((Text)longStr);
-                  host_uart->print((Text)" is over MAX!\r\n");
-                }
-                // We really should ignore this once system is robust
-                // echoPulseWidth = (unsigned long)USONAR_ECHO_MAX + (unsigned long)USONAR_ECHO_ERR4;
-                usonarSampleState = USONAR_STATE_POST_SAMPLE_WAIT;   // move on to next sample cycle
-                break;
-              }
-
-              // THIS IS THE REAL AND DESIRED PLACE WE EXPECT TO BE EACH TIME!
-              sonarSampleTimes[usonar.measSpecNumToUnitNum(cycleNum)] = currentDelayData2;
-              float distanceInMeters = usonar.echoUsToMeters(echoPulseWidth);
-              sonarDistancesInMeters[usonar.measSpecNumToUnitNum(cycleNum)] = distanceInMeters;
-
-              if (loki_rab_sonar.system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
-                char outBuf2[32];
-                float distInCm;
-                int   echoCm;
-                echoCm = echoPulseWidth / 58;
-                distInCm = distanceInMeters * (float)(100.0);
-                dtostrf(distInCm, 6, 1, outBuf2);
-                host_uart->string_print((Text)" S: ");
-                host_uart->integer_print((int)usonar.measSpecNumToUnitNum(cycleNum));
-                host_uart->string_print((Text)" E: ");
-                host_uart->integer_print((int)echoCm);
-                host_uart->string_print((Text)"cm D: ");
-                host_uart->string_print((Text)outBuf2);
-                host_uart->string_print((Text)"cm \r\n");
-              }
-              }
-              usonarSampleState = USONAR_STATE_POST_SAMPLE_WAIT;
-            }
-          break;
-
-        case USONAR_STATE_POST_SAMPLE_WAIT: {
-          // We have included a deadtime so we don't totaly hammer the ultrasound 
-          // this will then not drive dogs 'too' crazy
-          unsigned long waitTimer;
-          unsigned long curTicks;
-          curTicks = USONAR_GET_MICROSECONDS;
-
-          currentDelayData1 = 0;      // Reset the sample gathering values for this run
-          currentDelayData2 = 0;
-
-          waitTimer = curTicks - sonarMeasTriggerTime; 
-
-          if (sonarMeasTriggerTime > curTicks) {   // Unsigned math so we can get HUGE number
-            if (loki_rab_sonar.system_debug_flags_get() & DBG_FLAG_USENSOR_DEBUG) {
-              host_uart->print((Text)" Sonar system timer rollover in meas spacing.\r\n");
-            }
-            usonarSampleState = USONAR_STATE_MEAS_START;
-          } else if (waitTimer > USONAR_SAMPLES_US) {   
-            usonarSampleState = USONAR_STATE_MEAS_START;
-          }
-
-          // If we fall through without state change we are still waiting
-          }
-          break;
-
-        default:
-              usonarSampleState = USONAR_STATE_MEAS_START;
-        break;
-      }
+      usonar.poll();
       
       bridge.loop(TEST);
       break;
