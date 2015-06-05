@@ -153,7 +153,8 @@ Bridge bridge(&avr_uart0, &avr_uart1, &avr_uart0, &bus_slave,
  (Bus_Motor_Encoder *)&right_motor_encoder,
  (RAB_Sonar *)&loki_rab_sonar);
 
-static Sonar usonar((UART *)debug_uart, (RAB_Sonar *)&loki_rab_sonar);
+static Sonar_Controller sonar_controller(
+ (UART *)debug_uart, (RAB_Sonar *)&loki_rab_sonar);
 
 void leds_byte_write(char byte) {
   //digitalWrite(led0_pin, (byte & 1) ? LOW : HIGH);
@@ -379,7 +380,8 @@ Loki_RAB_Sonar::Loki_RAB_Sonar(UART *debug_uart) : RAB_Sonar(debug_uart) {
 
 Short Loki_RAB_Sonar::ping_get(UByte sonar) {
   // FIXME: Do this in fixed point!!!
-  return (Short)(usonar.getLastDistInMm(sonar)/(float)(10.0) + (float)(0.5));
+  return (Short)(sonar_controller.getLastDistInMm(sonar)/(float)(10.0) + 
+   (float)(0.5));
 }
 
 Short Loki_RAB_Sonar::system_debug_flags_get() {
@@ -637,7 +639,7 @@ void loop() {
 	encoder1_state = (unsigned char)(state_transition & 0x7);
       }
 
-      usonar.poll();
+      sonar_controller.poll();
       
       bridge.loop(TEST);
       break;
