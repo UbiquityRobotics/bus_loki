@@ -204,22 +204,75 @@ int usonar_queueOverflow = 0;              // Producer can set this and consumer
 //  sort of like how you tighten bolts on a wheel by doing the one across the center
 //
 Sonar loki_sonars[USONAR_MAX_SPECS] = { 
-  {  1, US_MEAS_METHOD_T01_PG2,   0, 0, 2,  _BV(7), &PING, (UByte)_BV(2), &PINK, (UByte)_BV(7) },
-  {  2, US_MEAS_METHOD_PIN_PCINT, 0, 0, 2,  _BV(6), &PINA, (UByte)_BV(0), &PINK, (UByte)_BV(6) },
-  {  3, US_MEAS_METHOD_PIN_PCINT, 0, 0, 2,  _BV(5), &PINA, (UByte)_BV(1), &PINK, (UByte)_BV(5) },
-  {  4, US_MEAS_METHOD_PIN_PCINT, 0, 0, 2,  _BV(4), &PINA, (UByte)_BV(2), &PINK, (UByte)_BV(4) },
-  {  5, US_MEAS_METHOD_PIN_PCINT, 0, 0, 2,  _BV(3), &PINA, (UByte)_BV(3), &PINK, (UByte)_BV(3) },
-  {  6, US_MEAS_METHOD_PIN_PCINT, 0, 0, 2,  _BV(2), &PINA, (UByte)_BV(4), &PINK, (UByte)_BV(2) },
-  {  7, US_MEAS_METHOD_PIN_PCINT, 0, 0, 2,  _BV(1), &PINA, (UByte)_BV(5), &PINK, (UByte)_BV(1) },
-  {  8, US_MEAS_METHOD_PIN_PCINT, 0, 0, 2,  _BV(0), &PINA, (UByte)_BV(6), &PINK, (UByte)_BV(0) },
-  {  9, US_MEAS_METHOD_PIN_PCINT, 0, 0, 1,  _BV(7), &PINA, (UByte)_BV(7), &PINJ, (UByte)_BV(6) },
-  { 10, US_MEAS_METHOD_T10_PJ7,   0, 0, 1,  _BV(6), &PINJ, (UByte)_BV(7), &PINJ, (UByte)_BV(5) },
-  { 11, US_MEAS_METHOD_PCINT,     0, 0, 1,  _BV(5), &PINL, (UByte)_BV(3), &PINK, (UByte)_BV(4) },
-  { 12, US_MEAS_METHOD_NONE,      0, 0, 1,  _BV(4), &PINL, (UByte)_BV(2), &PINK, (UByte)_BV(3) },
-  { 13, US_MEAS_METHOD_PCINT,     0, 0, 1,  _BV(2), &PINL, (UByte)_BV(1), &PINK, (UByte)_BV(2) },
-  { 14, US_MEAS_METHOD_PCINT,     0, 0, 1,  _BV(2), &PINL, (UByte)_BV(0), &PINK, (UByte)_BV(2) },
-  { 15, US_MEAS_METHOD_T15_PG4,   0, 0, 1,  _BV(3), &PING, (UByte)_BV(4), &PINK, (UByte)_BV(1) },
-  { 16, US_MEAS_METHOD_T16_PG3,   0, 0, 1,  _BV(3), &PING, (UByte)_BV(3), &PINK, (UByte)_BV(1) }
+  {  1, US_MEAS_METHOD_T01_PG2,   2,  _BV(7), &PING, (UByte)_BV(2), &PINK, (UByte)_BV(7) },
+  {  2, US_MEAS_METHOD_PIN_PCINT, 2,  _BV(6), &PINA, (UByte)_BV(0), &PINK, (UByte)_BV(6) },
+  {  3, US_MEAS_METHOD_PIN_PCINT, 2,  _BV(5), &PINA, (UByte)_BV(1), &PINK, (UByte)_BV(5) },
+  {  4, US_MEAS_METHOD_PIN_PCINT, 2,  _BV(4), &PINA, (UByte)_BV(2), &PINK, (UByte)_BV(4) },
+  {  5, US_MEAS_METHOD_PIN_PCINT, 2,  _BV(3), &PINA, (UByte)_BV(3), &PINK, (UByte)_BV(3) },
+  {  6, US_MEAS_METHOD_PIN_PCINT, 2,  _BV(2), &PINA, (UByte)_BV(4), &PINK, (UByte)_BV(2) },
+  {  7, US_MEAS_METHOD_PIN_PCINT, 2,  _BV(1), &PINA, (UByte)_BV(5), &PINK, (UByte)_BV(1) },
+  {  8, US_MEAS_METHOD_PIN_PCINT, 2,  _BV(0), &PINA, (UByte)_BV(6), &PINK, (UByte)_BV(0) },
+  {  9, US_MEAS_METHOD_PIN_PCINT, 1,  _BV(7), &PINA, (UByte)_BV(7), &PINJ, (UByte)_BV(6) },
+  { 10, US_MEAS_METHOD_T10_PJ7,   1,  _BV(6), &PINJ, (UByte)_BV(7), &PINJ, (UByte)_BV(5) },
+  { 11, US_MEAS_METHOD_PCINT,     1,  _BV(5), &PINL, (UByte)_BV(3), &PINK, (UByte)_BV(4) },
+  { 12, US_MEAS_METHOD_NONE,      1,  _BV(4), &PINL, (UByte)_BV(2), &PINK, (UByte)_BV(3) },
+  { 13, US_MEAS_METHOD_PCINT,     1,  _BV(2), &PINL, (UByte)_BV(1), &PINK, (UByte)_BV(2) },
+  { 14, US_MEAS_METHOD_PCINT,     1,  _BV(2), &PINL, (UByte)_BV(0), &PINK, (UByte)_BV(2) },
+  { 15, US_MEAS_METHOD_T15_PG4,   1,  _BV(3), &PING, (UByte)_BV(4), &PINK, (UByte)_BV(1) },
+  { 16, US_MEAS_METHOD_T16_PG3,   1,  _BV(3), &PING, (UByte)_BV(3), &PINK, (UByte)_BV(1) }
+};
+
+Sonar sonar1 =
+  {  1, US_MEAS_METHOD_T01_PG2,   2,  _BV(7), &PING, (UByte)_BV(2), &PINK, (UByte)_BV(7) };
+Sonar sonar2 =
+  {  2, US_MEAS_METHOD_PIN_PCINT, 2,  _BV(6), &PINA, (UByte)_BV(0), &PINK, (UByte)_BV(6) };
+Sonar sonar3 =
+  {  3, US_MEAS_METHOD_PIN_PCINT, 2,  _BV(5), &PINA, (UByte)_BV(1), &PINK, (UByte)_BV(5) };
+Sonar sonar4 =
+  {  4, US_MEAS_METHOD_PIN_PCINT, 2,  _BV(4), &PINA, (UByte)_BV(2), &PINK, (UByte)_BV(4) };
+Sonar sonar5 =
+  {  5, US_MEAS_METHOD_PIN_PCINT, 2,  _BV(3), &PINA, (UByte)_BV(3), &PINK, (UByte)_BV(3) };
+Sonar sonar6 =
+  {  6, US_MEAS_METHOD_PIN_PCINT, 2,  _BV(2), &PINA, (UByte)_BV(4), &PINK, (UByte)_BV(2) };
+Sonar sonar7 =
+  {  7, US_MEAS_METHOD_PIN_PCINT, 2,  _BV(1), &PINA, (UByte)_BV(5), &PINK, (UByte)_BV(1) };
+Sonar sonar8 =
+  {  8, US_MEAS_METHOD_PIN_PCINT, 2,  _BV(0), &PINA, (UByte)_BV(6), &PINK, (UByte)_BV(0) };
+Sonar sonar9 =
+  {  9, US_MEAS_METHOD_PIN_PCINT, 1,  _BV(7), &PINA, (UByte)_BV(7), &PINJ, (UByte)_BV(6) };
+Sonar sonar10 =
+  { 10, US_MEAS_METHOD_T10_PJ7,   1,  _BV(6), &PINJ, (UByte)_BV(7), &PINJ, (UByte)_BV(5) };
+Sonar sonar11 =
+  { 11, US_MEAS_METHOD_PCINT,     1,  _BV(5), &PINL, (UByte)_BV(3), &PINK, (UByte)_BV(4) };
+Sonar sonar12 =
+  { 12, US_MEAS_METHOD_NONE,      1,  _BV(4), &PINL, (UByte)_BV(2), &PINK, (UByte)_BV(3) };
+Sonar sonar13 =
+  { 13, US_MEAS_METHOD_PCINT,     1,  _BV(2), &PINL, (UByte)_BV(1), &PINK, (UByte)_BV(2) };
+Sonar sonar14 = 
+  { 14, US_MEAS_METHOD_PCINT,     1,  _BV(2), &PINL, (UByte)_BV(0), &PINK, (UByte)_BV(2) };
+Sonar sonar15 =
+  { 15, US_MEAS_METHOD_T15_PG4,   1,  _BV(3), &PING, (UByte)_BV(4), &PINK, (UByte)_BV(1) };
+Sonar sonar16 =
+  { 16, US_MEAS_METHOD_T16_PG3,   1,  _BV(3), &PING, (UByte)_BV(3), &PINK, (UByte)_BV(1) };
+
+Sonar *xsonars[] = {
+  &sonar1,
+  &sonar2,
+  &sonar3,
+  &sonar4,
+  &sonar5,
+  &sonar6,
+  &sonar7,
+  &sonar8,
+  &sonar9,
+  &sonar10,
+  &sonar11,
+  &sonar12,
+  &sonar13,
+  &sonar14,
+  &sonar15,
+  &sonar16,
+  (Sonar *)0,	// Null terminate end of sonar list:
 };
 
 
@@ -247,7 +300,7 @@ Bridge bridge(&avr_uart0, &avr_uart1, &avr_uart0, &bus_slave,
  (RAB_Sonar *)&loki_rab_sonar);
 
 static Sonar_Controller sonar_controller(
- (UART *)debug_uart, (RAB_Sonar *)&loki_rab_sonar, &loki_sonars[0]);
+ (UART *)debug_uart, (RAB_Sonar *)&loki_rab_sonar, &xsonars[0]);
 
 void leds_byte_write(char byte) {
   //digitalWrite(led0_pin, (byte & 1) ? LOW : HIGH);
@@ -425,29 +478,6 @@ void setup() {
   pinMode(motor2_input1_pin, OUTPUT);
   pinMode(motor2_input2_pin, OUTPUT);
   pinMode(motor2_enable_pin, OUTPUT);
-  //pinMode(sonar_echo1_pin, INPUT);
-  //pinMode(sonar_echo2_pin, INPUT);
-  //pinMode(sonar_echo3_pin, INPUT);
-  //pinMode(sonar_echo4_pin, INPUT);
-  //pinMode(sonar_echo5_pin, INPUT);
-  //pinMode(sonar_echo6_pin, INPUT);
-  //pinMode(sonar_echo7_pin, INPUT);
-  //pinMode(sonar_echo8_pin, INPUT);
-  //pinMode(sonar_trig1_pin, OUTPUT);
-  //pinMode(sonar_trig2_pin, OUTPUT);
-  //pinMode(sonar_trig3_pin, OUTPUT);
-  //pinMode(sonar_trig4_pin, OUTPUT);
-  //pinMode(sonar_trig5_pin, OUTPUT);
-  //pinMode(sonar_trig6_pin, OUTPUT);
-  //pinMode(sonar_trig7_pin, OUTPUT);
-  //pinMode(sonar_trig8_pin, OUTPUT);
-  //pinMode(sonar_trig9_pin, OUTPUT);
-  //pinMode(sonar_trig11_pin, OUTPUT);
-  //pinMode(sonar_trig12_pin, OUTPUT);
-  //pinMode(sonar_trig13_pin, OUTPUT);
-  //pinMode(sonar_trig14_pin, OUTPUT);
-  //pinMode(sonar_trig15_pin, OUTPUT);
-  //pinMode(sonar_trig16_pin, OUTPUT);
 
   leds_byte_write(0);
   host_uart->begin(16000000L, 115200L, (Character *)"8N1");
