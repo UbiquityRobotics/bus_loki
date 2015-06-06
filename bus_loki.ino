@@ -130,62 +130,6 @@ static const int motor2_input2_pin = 3;
 static const int motor2_enable_pin = 2;
 
 
-// Define the UART's:
-NULL_UART null_uart;
-AVR_UART *bus_uart = &avr_uart1;
-AVR_UART *debug_uart = &avr_uart0;
-AVR_UART *host_uart = &avr_uart0;
-
-// The two encoder values:
-Integer encoder1 = 0;
-Integer encoder2 = 0;
-
-Bus_Slave bus_slave((UART *)bus_uart, (UART *)host_uart);
-
-Loki_Motor_Encoder left_motor_encoder(motor1_input1_pin, motor1_input2_pin,
- motor1_enable_pin, &encoder1);
-Loki_Motor_Encoder right_motor_encoder(motor2_input1_pin, motor2_input2_pin,
- motor2_enable_pin, &encoder2);
-Loki_RAB_Sonar loki_rab_sonar((UART *)&debug_uart);
-
-Bridge bridge(&avr_uart0, &avr_uart1, &avr_uart0, &bus_slave,
- (Bus_Motor_Encoder *)&left_motor_encoder,
- (Bus_Motor_Encoder *)&right_motor_encoder,
- (RAB_Sonar *)&loki_rab_sonar);
-
-static Sonar_Controller sonar_controller(
- (UART *)debug_uart, (RAB_Sonar *)&loki_rab_sonar);
-
-void leds_byte_write(char byte) {
-  //digitalWrite(led0_pin, (byte & 1) ? LOW : HIGH);
-  //digitalWrite(led1_pin, (byte & 2) ? LOW : HIGH);
-  //digitalWrite(led2_pin, (byte & 4) ? LOW : HIGH);
-  //digitalWrite(led3_pin, (byte & 8) ? LOW : HIGH);
-  //digitalWrite(led4_pin, (byte & 16) ? LOW : HIGH);
-  //digitalWrite(led5_pin, (byte & 32) ? LOW : HIGH);
-  //digitalWrite(led6_pin, (byte & 64) ? LOW : HIGH);
-  //digitalWrite(led7_pin, (byte & 128) ? LOW : HIGH);
-  PORTC = byte;
-}
-
-// *PCINT0_vect*() is the interrupt service routine for the
-// pin change interrupts PCINT7/.../0.  The two encoders are
-// attached to PCINT7/6/5/4, so these are the bits we want
-// to capture.  This routine just stuffs the encoder bits
-// into a buffer:
-
-ISR(PCINT0_vect) {
-  // Stuff the port C input bits into *buffer* and advance *buffer_in*:
-  UByte bits = PINB;
-  encoder_buffer[encoder_buffer_in] = bits;
-  encoder_buffer_in = (encoder_buffer_in + 1) & BUFFER_MASK;
-  PORTC = PINB;
-  //leds_byte_write(bits);
-  //leds_byte_write(encoder_buffer_in);
-  //host_uart->print("0123456789abcdef"[(bits >> 4) & 0xf]);
-  //UDR0 = '.';
-}
-
 /* ********************************************************************************************
  * UltraSonic Sonar Code
  *
@@ -259,25 +203,81 @@ int usonar_queueOverflow = 0;              // Producer can set this and consumer
 //  You may wish to shuffle the table to get faster updates around each side
 //  sort of like how you tighten bolts on a wheel by doing the one across the center
 //
-const Usonar_Meas_Spec  usonar_measSpecs[USONAR_MAX_SPECS] = { 
-    {  1, US_MEAS_METHOD_T01_PG2,   sonar_trig1_pin,  sonar_echo1_pin,  2,  _BV(7) },
-    {  2, US_MEAS_METHOD_PIN_PCINT, sonar_trig2_pin,  sonar_echo2_pin,  2,  _BV(6) },
-    {  3, US_MEAS_METHOD_PIN_PCINT, sonar_trig3_pin,  sonar_echo3_pin,  2,  _BV(5) },
-    {  4, US_MEAS_METHOD_PIN_PCINT, sonar_trig4_pin,  sonar_echo4_pin,  2,  _BV(4) },
-    {  5, US_MEAS_METHOD_PIN_PCINT, sonar_trig5_pin,  sonar_echo5_pin,  2,  _BV(3) },
-    {  6, US_MEAS_METHOD_PIN_PCINT, sonar_trig6_pin,  sonar_echo6_pin,  2,  _BV(2) },
-    {  7, US_MEAS_METHOD_PIN_PCINT, sonar_trig7_pin,  sonar_echo7_pin,  2,  _BV(1) },
-    {  8, US_MEAS_METHOD_PIN_PCINT, sonar_trig8_pin,  sonar_echo8_pin,  2,  _BV(0) },
-    {  9, US_MEAS_METHOD_PIN_PCINT, sonar_trig9_pin,  sonar_echo9_pin,  1,  _BV(7) },
-    { 10, US_MEAS_METHOD_T10_PJ7,   sonar_trig10_pin, sonar_echo10_pin, 1,  _BV(6) },
-    { 11, US_MEAS_METHOD_PCINT,     sonar_trig11_pin, sonar_echo11_pin, 1,  _BV(5) },
-    { 12, US_MEAS_METHOD_NONE,      sonar_trig12_pin, sonar_echo12_pin, 1,  _BV(4) },
-    { 13, US_MEAS_METHOD_PCINT,     sonar_trig13_pin, sonar_echo13_pin, 1,  _BV(2) },
-    { 14, US_MEAS_METHOD_PCINT,     sonar_trig14_pin, sonar_echo14_pin, 1,  _BV(2) },
-    { 15, US_MEAS_METHOD_T15_PG4,   sonar_trig15_pin, sonar_echo15_pin, 1,  _BV(3) },
-    { 16, US_MEAS_METHOD_T16_PG3,   sonar_trig16_pin, sonar_echo16_pin, 1,  _BV(3) }
+Sonar loki_sonars[USONAR_MAX_SPECS] = { 
+  {  1, US_MEAS_METHOD_T01_PG2,   0, 0, 2,  _BV(7), &PING, (UByte)_BV(2), &PINK, (UByte)_BV(7) },
+  {  2, US_MEAS_METHOD_PIN_PCINT, 0, 0, 2,  _BV(6), &PINA, (UByte)_BV(0), &PINK, (UByte)_BV(6) },
+  {  3, US_MEAS_METHOD_PIN_PCINT, 0, 0, 2,  _BV(5), &PINA, (UByte)_BV(1), &PINK, (UByte)_BV(5) },
+  {  4, US_MEAS_METHOD_PIN_PCINT, 0, 0, 2,  _BV(4), &PINA, (UByte)_BV(2), &PINK, (UByte)_BV(4) },
+  {  5, US_MEAS_METHOD_PIN_PCINT, 0, 0, 2,  _BV(3), &PINA, (UByte)_BV(3), &PINK, (UByte)_BV(3) },
+  {  6, US_MEAS_METHOD_PIN_PCINT, 0, 0, 2,  _BV(2), &PINA, (UByte)_BV(4), &PINK, (UByte)_BV(2) },
+  {  7, US_MEAS_METHOD_PIN_PCINT, 0, 0, 2,  _BV(1), &PINA, (UByte)_BV(5), &PINK, (UByte)_BV(1) },
+  {  8, US_MEAS_METHOD_PIN_PCINT, 0, 0, 2,  _BV(0), &PINA, (UByte)_BV(6), &PINK, (UByte)_BV(0) },
+  {  9, US_MEAS_METHOD_PIN_PCINT, 0, 0, 1,  _BV(7), &PINA, (UByte)_BV(7), &PINJ, (UByte)_BV(6) },
+  { 10, US_MEAS_METHOD_T10_PJ7,   0, 0, 1,  _BV(6), &PINJ, (UByte)_BV(7), &PINJ, (UByte)_BV(5) },
+  { 11, US_MEAS_METHOD_PCINT,     0, 0, 1,  _BV(5), &PINL, (UByte)_BV(3), &PINK, (UByte)_BV(4) },
+  { 12, US_MEAS_METHOD_NONE,      0, 0, 1,  _BV(4), &PINL, (UByte)_BV(2), &PINK, (UByte)_BV(3) },
+  { 13, US_MEAS_METHOD_PCINT,     0, 0, 1,  _BV(2), &PINL, (UByte)_BV(1), &PINK, (UByte)_BV(2) },
+  { 14, US_MEAS_METHOD_PCINT,     0, 0, 1,  _BV(2), &PINL, (UByte)_BV(0), &PINK, (UByte)_BV(2) },
+  { 15, US_MEAS_METHOD_T15_PG4,   0, 0, 1,  _BV(3), &PING, (UByte)_BV(4), &PINK, (UByte)_BV(1) },
+  { 16, US_MEAS_METHOD_T16_PG3,   0, 0, 1,  _BV(3), &PING, (UByte)_BV(3), &PINK, (UByte)_BV(1) }
 };
 
+
+// Define the UART's:
+NULL_UART null_uart;
+AVR_UART *bus_uart = &avr_uart1;
+AVR_UART *debug_uart = &avr_uart0;
+AVR_UART *host_uart = &avr_uart0;
+
+// The two encoder values:
+Integer encoder1 = 0;
+Integer encoder2 = 0;
+
+Bus_Slave bus_slave((UART *)bus_uart, (UART *)host_uart);
+
+Loki_Motor_Encoder left_motor_encoder(motor1_input1_pin, motor1_input2_pin,
+ motor1_enable_pin, &encoder1);
+Loki_Motor_Encoder right_motor_encoder(motor2_input1_pin, motor2_input2_pin,
+ motor2_enable_pin, &encoder2);
+Loki_RAB_Sonar loki_rab_sonar((UART *)&debug_uart);
+
+Bridge bridge(&avr_uart0, &avr_uart1, &avr_uart0, &bus_slave,
+ (Bus_Motor_Encoder *)&left_motor_encoder,
+ (Bus_Motor_Encoder *)&right_motor_encoder,
+ (RAB_Sonar *)&loki_rab_sonar);
+
+static Sonar_Controller sonar_controller(
+ (UART *)debug_uart, (RAB_Sonar *)&loki_rab_sonar, &loki_sonars[0]);
+
+void leds_byte_write(char byte) {
+  //digitalWrite(led0_pin, (byte & 1) ? LOW : HIGH);
+  //digitalWrite(led1_pin, (byte & 2) ? LOW : HIGH);
+  //digitalWrite(led2_pin, (byte & 4) ? LOW : HIGH);
+  //digitalWrite(led3_pin, (byte & 8) ? LOW : HIGH);
+  //digitalWrite(led4_pin, (byte & 16) ? LOW : HIGH);
+  //digitalWrite(led5_pin, (byte & 32) ? LOW : HIGH);
+  //digitalWrite(led6_pin, (byte & 64) ? LOW : HIGH);
+  //digitalWrite(led7_pin, (byte & 128) ? LOW : HIGH);
+  PORTC = byte;
+}
+
+// *PCINT0_vect*() is the interrupt service routine for the
+// pin change interrupts PCINT7/.../0.  The two encoders are
+// attached to PCINT7/6/5/4, so these are the bits we want
+// to capture.  This routine just stuffs the encoder bits
+// into a buffer:
+
+ISR(PCINT0_vect) {
+  // Stuff the port C input bits into *buffer* and advance *buffer_in*:
+  UByte bits = PINB;
+  encoder_buffer[encoder_buffer_in] = bits;
+  encoder_buffer_in = (encoder_buffer_in + 1) & BUFFER_MASK;
+  PORTC = PINB;
+  //leds_byte_write(bits);
+  //leds_byte_write(encoder_buffer_in);
+  //host_uart->print("0123456789abcdef"[(bits >> 4) & 0xf]);
+  //UDR0 = '.';
+}
 
 // *PCINT1_vect*() is one of two ISRs to gather sonar bounce pulse widths
 //
@@ -400,6 +400,8 @@ UByte Loki_RAB_Sonar::sonars_count_get() {
 // The *setup*() routine runs once when you press reset:
 void setup() {
 
+  sonar_controller.ports_initialize();
+
   usonar_producerIndex = 0;
   usonar_consumerIndex = 0;
 
@@ -423,29 +425,29 @@ void setup() {
   pinMode(motor2_input1_pin, OUTPUT);
   pinMode(motor2_input2_pin, OUTPUT);
   pinMode(motor2_enable_pin, OUTPUT);
-  pinMode(sonar_echo1_pin, INPUT);
-  pinMode(sonar_echo2_pin, INPUT);
-  pinMode(sonar_echo3_pin, INPUT);
-  pinMode(sonar_echo4_pin, INPUT);
-  pinMode(sonar_echo5_pin, INPUT);
-  pinMode(sonar_echo6_pin, INPUT);
-  pinMode(sonar_echo7_pin, INPUT);
-  pinMode(sonar_echo8_pin, INPUT);
-  pinMode(sonar_trig1_pin, OUTPUT);
-  pinMode(sonar_trig2_pin, OUTPUT);
-  pinMode(sonar_trig3_pin, OUTPUT);
-  pinMode(sonar_trig4_pin, OUTPUT);
-  pinMode(sonar_trig5_pin, OUTPUT);
-  pinMode(sonar_trig6_pin, OUTPUT);
-  pinMode(sonar_trig7_pin, OUTPUT);
-  pinMode(sonar_trig8_pin, OUTPUT);
-  pinMode(sonar_trig9_pin, OUTPUT);
-  pinMode(sonar_trig11_pin, OUTPUT);
-  pinMode(sonar_trig12_pin, OUTPUT);
-  pinMode(sonar_trig13_pin, OUTPUT);
-  pinMode(sonar_trig14_pin, OUTPUT);
-  pinMode(sonar_trig15_pin, OUTPUT);
-  pinMode(sonar_trig16_pin, OUTPUT);
+  //pinMode(sonar_echo1_pin, INPUT);
+  //pinMode(sonar_echo2_pin, INPUT);
+  //pinMode(sonar_echo3_pin, INPUT);
+  //pinMode(sonar_echo4_pin, INPUT);
+  //pinMode(sonar_echo5_pin, INPUT);
+  //pinMode(sonar_echo6_pin, INPUT);
+  //pinMode(sonar_echo7_pin, INPUT);
+  //pinMode(sonar_echo8_pin, INPUT);
+  //pinMode(sonar_trig1_pin, OUTPUT);
+  //pinMode(sonar_trig2_pin, OUTPUT);
+  //pinMode(sonar_trig3_pin, OUTPUT);
+  //pinMode(sonar_trig4_pin, OUTPUT);
+  //pinMode(sonar_trig5_pin, OUTPUT);
+  //pinMode(sonar_trig6_pin, OUTPUT);
+  //pinMode(sonar_trig7_pin, OUTPUT);
+  //pinMode(sonar_trig8_pin, OUTPUT);
+  //pinMode(sonar_trig9_pin, OUTPUT);
+  //pinMode(sonar_trig11_pin, OUTPUT);
+  //pinMode(sonar_trig12_pin, OUTPUT);
+  //pinMode(sonar_trig13_pin, OUTPUT);
+  //pinMode(sonar_trig14_pin, OUTPUT);
+  //pinMode(sonar_trig15_pin, OUTPUT);
+  //pinMode(sonar_trig16_pin, OUTPUT);
 
   leds_byte_write(0);
   host_uart->begin(16000000L, 115200L, (Character *)"8N1");
@@ -463,8 +465,8 @@ void setup() {
       //host_uart->print((Text)"Bridge setup done\r\n");
 
       // Special port bit setups to allow sonar triggering
-      DDRG = 0x1c;     // Sonar 15 and 16 and 1 triggers
-      DDRJ = 0x80;     // Sonar 10 trigger
+      //DDRG = 0x1c;     // Sonar 15 and 16 and 1 triggers
+      //DDRJ = 0x80;     // Sonar 10 trigger
 
       // Set up Interrupt on Pin Change interrupt vector.  The encoder
       // pins are attached to PCINT7/6/5/4, so we only need to set
@@ -568,15 +570,15 @@ void loop() {
     }
     case BUS_LOKI_PROGRAM_SONAR_TEST: {
       // Send the trigger pulse out:
-      digitalWrite(sonar_trig5_pin, LOW);
-      delayMicroseconds(2);
-      digitalWrite(sonar_trig5_pin, HIGH);
-      delayMicroseconds(10);
-      digitalWrite(sonar_trig5_pin, LOW);
+      //digitalWrite(sonar_trig5_pin, LOW);
+      //delayMicroseconds(2);
+      //digitalWrite(sonar_trig5_pin, HIGH);
+      //delayMicroseconds(10);
+      //digitalWrite(sonar_trig5_pin, LOW);
 
-      unsigned long duration = pulseIn(sonar_echo5_pin, HIGH);
-      leds_byte_write(((duration >> 6) & 254) | (led_counter & 1));
-      led_counter += 1;
+      //unsigned long duration = pulseIn(sonar_echo5_pin, HIGH);
+      //leds_byte_write(((duration >> 6) & 254) | (led_counter & 1));
+      //led_counter += 1;
 
       delay(100);
       break;
