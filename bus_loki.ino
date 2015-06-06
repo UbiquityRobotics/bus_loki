@@ -146,35 +146,6 @@ static const int motor2_enable_pin = 2;
 // Also the index is the sonar number so entry [0] is zero
 
 
-// Define the circular queue members and indexes.
-// Remember! this is highly optimized so no fancy classes used here folks!
-//
-// Queue Rules:
-//  - The index values increment for each entry and roll back to 0 when equal to USONAR_QUEUE_LEN
-//    It is possible to have consumer index near end and producer near start index of 0 which means
-//    the entries are rolling around but are still all valid.  Producers and consumer MUST deal with this.
-//  - Producer may only put in entries if 2 or more spaces are open
-//  - Producer must drop entries if queue is full
-//  - Producer places data at next index past current producer index in both arrays 
-//    and THEN bumps producer index to point to that index when values are intact.
-//  - Consumer may only read entries up to and including current producer index.
-//  - Consumer may only bump consumer index to one more than what has just been processed.
-//    Consumer must NEVER try to read the values once consumer has bumped consumer index past
-//
-// Queue Member Descriptions
-//  usonar_echoEdgeQueue[]    ISR fed queue to hold edge change detections produced in fast ISR.
-//                            Entires are 30 bit timestamp with lower 2 bits showing the bank that changed
-//                            Note that the timestamp will roll over in around 70 min
-//  usonar_EchoChangedPins[]  Not used yet!  Is to hold a 1 for each pin that has changed at this timestamp.
-//                            Bits 23:0 are to be placed properly by each ISR
-//
-
-// The Echo timestamp is saved with the least sig 2 bits being set to the channel for this timestamp
-// We do not know which bits changed, we only know at least one changed in this bank.
-// We also have a word of info to hold other info we may want the ISR to return
-// So this means the sonar cycling needs to be careful to only do one sample at a time from any one bank
-unsigned long usonar_echoEdgeQueue[USONAR_QUEUE_LEN];
-unsigned long usonar_echoInfoQueue[USONAR_QUEUE_LEN];
 
 #define  USONAR_MIN_EMPTIES   2            // minimum space where producer can insert new entry
 unsigned int  usonar_producerIndex = 0;    // Owned by ISRs and only inspected by consumer
@@ -184,7 +155,6 @@ int usonar_queueOverflow = 0;              // Producer can set this and consumer
 // Encapsulated hardware specifics for Loki Platform
 // Pin change interrupts are involved so we have a little table to help
 // sort them out that must match the hardware.
-// This table was done for Loki Rev C board
 //
 // IntBit: _BV(7)   _BV(6)   _BV(5)   _BV(4)   _BV(3)   _BV(2)  _BV(1)    _BV(0);
 //
@@ -196,13 +166,16 @@ int usonar_queueOverflow = 0;              // Producer can set this and consumer
 // ChipPin:  69       68       67       66       65      64       --       --
 // PCINT1:   15       14       13       12       11      10       --       --
 
-//  This table defines the methods that sonar measurements can be taken
-//  The index to this table is meant to be the measurement cycle number of our task 
+// This table defines the methods that sonar measurements can be taken.
+// The index to this table is meant to be the measurement cycle number
+// of our task .
 //
-//  Note that the code should work if you shuffle this table.
-//  You may wish to shuffle the table to get faster updates around each side
-//  sort of like how you tighten bolts on a wheel by doing the one across the center
-//
+// Note that the code should work if you shuffle this table.  You may wish
+// to shuffle the table to get faster updates around each side sort of like
+// how you tighten bolts on a wheel by doing the one across the center.
+
+// Create one *Sonar* object for each physical HC-SRO4 sonar on Loki.
+// This table is for the Loki Rev. C board:
 Sonar sonar1(  1, 2,  _BV(7), &PING, (UByte)_BV(2), &PINK, (UByte)_BV(7) );
 Sonar sonar2(  2, 2,  _BV(6), &PINA, (UByte)_BV(0), &PINK, (UByte)_BV(6) );
 Sonar sonar3(  3, 2,  _BV(5), &PINA, (UByte)_BV(1), &PINK, (UByte)_BV(5) );
@@ -220,6 +193,7 @@ Sonar sonar14(14, 1,  _BV(2), &PINL, (UByte)_BV(0), &PINK, (UByte)_BV(2) );
 Sonar sonar15(15, 1,  _BV(3), &PING, (UByte)_BV(4), &PINK, (UByte)_BV(1) );
 Sonar sonar16(16, 1,  _BV(3), &PING, (UByte)_BV(3), &PINK, (UByte)_BV(1) );
 
+// Create a null-terminated list of the *Sonar* objects:
 Sonar *sonars[] = {
   &sonar1,
   &sonar2,
@@ -237,7 +211,7 @@ Sonar *sonars[] = {
   &sonar14,
   &sonar15,
   &sonar16,
-  (Sonar *)0,	// Null terminate end of sonar list:
+  (Sonar *)0,	// Put a null on the end to terminate sonar list:
 };
 
 
@@ -279,17 +253,19 @@ void leds_byte_write(char byte) {
   PORTC = byte;
 }
 
+// Pin Change interrupt service routines:
+
 // *PCINT0_vect*() is the interrupt service routine for the
 // pin change interrupts PCINT7/.../0.  The two encoders are
 // attached to PCINT7/6/5/4, so these are the bits we want
 // to capture.  This routine just stuffs the encoder bits
 // into a buffer:
-
 ISR(PCINT0_vect) {
   // Stuff the port C input bits into *buffer* and advance *buffer_in*:
   UByte bits = PINB;
   encoder_buffer[encoder_buffer_in] = bits;
   encoder_buffer_in = (encoder_buffer_in + 1) & BUFFER_MASK;
+  // For now, copy *PINB* over to the LEDS:
   PORTC = PINB;
   //leds_byte_write(bits);
   //leds_byte_write(encoder_buffer_in);
@@ -297,100 +273,17 @@ ISR(PCINT0_vect) {
   //UDR0 = '.';
 }
 
-// *PCINT1_vect*() is one of two ISRs to gather sonar bounce pulse widths
-//
-// This ISR processes pin changes for Bank 1 which is for PCINT pins 15:8
-// This ISR must be LIGHTNING FAST and is bare bones petal-to-the-metal processing!
-//
-// Pidx = Cidx when queue is empty.  Consumer sees this as empy. Pi can stuff away
-// Pidx = Index that will next be filled by producer IF there was space
-// Cidx = Index that will be read next time around IF Pidx != Cidx
-//
-// Pin Change Processing:
-// This ISR will take in which pins had changes on one bank of pins
-// and then push those changes with an associated timestamp in echoQueue[]
-// The echoQueue[] is a circular queue so if the background consumer task
-// has left the queue too full this ISR will loose data.
+// *PCINT1_vect*() is the first ISR to gather sonar bounce pulse widths.
+// This ISR processes pin changes for Bank 1 which is for PCINT pins 15:8:
 ISR(PCINT1_vect) {
-   unsigned long now = USONAR_GET_MICROSECONDS; 	// Get clock FAST as we can
-
-#ifndef USONAR_ULTRA_FAST_ISR
-   int unused = 0;
-   int inuse  = 0;
-   // Ensure there is room in the queue even if we have rollover
-   if (usonar_consumerIndex <= usonar_producerIndex) {
-      inuse = usonar_producerIndex - usonar_consumerIndex;
-   } else {
-      inuse = (USONAR_QUEUE_LEN - usonar_consumerIndex) + usonar_producerIndex + 1;
-   }
-   unused = USONAR_QUEUE_LEN - inuse;
-
-   if (unused >= USONAR_MIN_EMPTIES) {
-#endif
-
-       // We can produce this entry into the queue and bump producer index
-       unsigned int nextProducerIndex = usonar_producerIndex + 1;
-       if (nextProducerIndex >= USONAR_QUEUE_LEN) 
-           nextProducerIndex = 0;
-
-       // Since timer resolution is about 8us and this clock is usec we will
-       // use the LOWER 2 bits to indicate which bank this change is from
-       usonar_echoEdgeQueue[usonar_producerIndex]  = (now & 0xfffffffc) | 1;
-       usonar_producerIndex = nextProducerIndex;  // Bump producer index to this valid one
-
-#ifndef USONAR_ULTRA_FAST_ISR
-   } else {
-       usonar_queueOverflow  += 1;
-   }
-#endif
+  Sonar_Controller::interrupt_handler(1);
 }
 
-// *PCINT2_vect*() is one of two ISRs to gather sonar bounce pulse widths
-//
-// This ISR processes pin changes for Bank 2 which is for PCINT pins 23:16
-// This ISR must be LIGHTNING FAST and is bare bones petal-to-the-metal processing!
-//
-// Please see PCINT1_vect() for comments on the details of Pin Change processing
-// 
+// *PCINT2_vect*() is the second ISR to gather sonar bounce pulse widths.
+// This ISR processes pin changes for Bank 2 which is for PCINT pins 23:16:
 ISR(PCINT2_vect) {
-   unsigned long now = USONAR_GET_MICROSECONDS; 	// Get clock FAST as we can
-
-#ifndef USONAR_ULTRA_FAST_ISR
-   int unused = 0;
-   int inuse  = 0;
-   // Ensure there is room in the queue even if we have rollover
-   if (usonar_consumerIndex <= usonar_producerIndex) {
-      inuse = usonar_producerIndex - usonar_consumerIndex;
-   } else {
-      inuse = (USONAR_QUEUE_LEN - usonar_consumerIndex) + usonar_producerIndex + 1;
-   }
-   unused = USONAR_QUEUE_LEN - inuse;
-
-   if (unused >= USONAR_MIN_EMPTIES) {
-#endif
-
-       // We can produce this entry into the queue and bump producer index
-       unsigned int nextProducerIndex = usonar_producerIndex + 1;
-       if (nextProducerIndex >= USONAR_QUEUE_LEN) 
-           nextProducerIndex = 0;
-
-       // Since timer resolution is about 8us and this clock is usec we will
-       // use the LOWER 2 bits to indicate which bank this change is from
-       usonar_echoEdgeQueue[usonar_producerIndex]  = (now & 0xfffffffc) | 2;
-       usonar_producerIndex = nextProducerIndex;  // Bump producer index to this valid one
-
-#ifndef USONAR_ULTRA_FAST_ISR
-   } else {
-       usonar_queueOverflow  += 1;
-   }
-#endif
+  Sonar_Controller::interrupt_handler(2);
 }
-
-
-/*
- *********************  End UltraSonic Sonar Code ********************************************
-*/
-
 
 Loki_RAB_Sonar::Loki_RAB_Sonar(UART *debug_uart) : RAB_Sonar(debug_uart) {
   system_debug_flags_ = 0;
