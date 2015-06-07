@@ -40,17 +40,13 @@ class Loki_Motor_Encoder : Bus_Motor_Encoder {
 class Loki_RAB_Sonar : RAB_Sonar {
  public:
   Loki_RAB_Sonar(UART *debug_uart);
-  virtual Short ping_get(UByte sonar);
-  virtual Short system_debug_flags_get();
-  virtual void system_debug_flags_set(Short system_flags);
+  virtual UShort ping_get(UByte sonar);
+  virtual UShort debug_flags_get();
+  virtual void debug_flags_set(UShort debug_flags);
   virtual UByte sonars_count_get();
  private:
-  Short system_debug_flags_;
+  Short debug_flags_;
 };
-
-
-
-
 
 // Encoder buffer:
 #define BUFFER_POWER 8
@@ -130,41 +126,19 @@ static const int motor2_input2_pin = 3;
 static const int motor2_enable_pin = 2;
 
 
-/* ********************************************************************************************
- * UltraSonic Sonar Code
- *
- * One part of the code must be extremely fast code used in ISRs to log edge detections
- *
- * A second part of the code is used in background to do round robin sonar scans and keep track
- * of latest good measurements of distance so they can be fetched by interested subsystems.
- *
- * Note: The background code could be moved into a separate header and file for the class.
- */
-
-// Some in-memory history of last sample times and readings in meters
-// These tables are organized by sonar number and not by measurement cycle number
-// Also the index is the sonar number so entry [0] is zero
-
-
-
-#define  USONAR_MIN_EMPTIES   2            // minimum space where producer can insert new entry
-unsigned int  usonar_producerIndex = 0;    // Owned by ISRs and only inspected by consumer
-unsigned int  usonar_consumerIndex = 0;    // Owned by consumer and only inspected by producer
-int usonar_queueOverflow = 0;              // Producer can set this and consumer has to be aware. 
-
 // Encapsulated hardware specifics for Loki Platform
 // Pin change interrupts are involved so we have a little table to help
 // sort them out that must match the hardware.
 //
-// IntBit: _BV(7)   _BV(6)   _BV(5)   _BV(4)   _BV(3)   _BV(2)  _BV(1)    _BV(0);
+// IntBit: _BV(7)  _BV(6)  _BV(5)  _BV(4)  _BV(3)  _BV(2)  _BV(1)  _BV(0);
 //
-// Sonar:     1        2        3        4        5        6       7        8
-// ChipPin:  82       83       84       85       86       87      88       89
-// PCINT2:   23       22       21       20       19       18      17       16
+// Sonar:     1       2       3       4       5       6       7       8
+// ChipPin:  82      83      84      85      86      87      88      89
+// PCINT2:   23      22      21      20      19      18      17      16
 //
-// Sonar:     9       10       11       12    13,14   15,16       --       --
-// ChipPin:  69       68       67       66       65      64       --       --
-// PCINT1:   15       14       13       12       11      10       --       --
+// Sonar:     9      10      11      12   13,14   15,16      --      --
+// ChipPin:  69      68      67      66      65      64      --      --
+// PCINT1:   15      14      13      12      11      10      --      --
 
 // This table defines the methods that sonar measurements can be taken.
 // The index to this table is meant to be the measurement cycle number
@@ -214,7 +188,6 @@ Sonar *sonars[] = {
   (Sonar *)0,	// Put a null on the end to terminate sonar list:
 };
 
-
 // Define the UART's:
 NULL_UART null_uart;
 AVR_UART *bus_uart = &avr_uart1;
@@ -238,8 +211,7 @@ Bridge bridge(&avr_uart0, &avr_uart1, &avr_uart0, &bus_slave,
  (Bus_Motor_Encoder *)&right_motor_encoder,
  (RAB_Sonar *)&loki_rab_sonar);
 
-static Sonar_Controller sonar_controller(
- (UART *)debug_uart, (RAB_Sonar *)&loki_rab_sonar, sonars);
+static Sonar_Controller sonar_controller((UART *)debug_uart, sonars);
 
 void leds_byte_write(char byte) {
   //digitalWrite(led0_pin, (byte & 1) ? LOW : HIGH);
@@ -286,21 +258,22 @@ ISR(PCINT2_vect) {
 }
 
 Loki_RAB_Sonar::Loki_RAB_Sonar(UART *debug_uart) : RAB_Sonar(debug_uart) {
-  system_debug_flags_ = 0;
+  debug_flags_ = 0;
 }
 
-Short Loki_RAB_Sonar::ping_get(UByte sonar) {
+UShort Loki_RAB_Sonar::ping_get(UByte sonar) {
   // FIXME: Do this in fixed point!!!
   return (Short)(sonar_controller.getLastDistInMm(sonar)/(float)(10.0) + 
    (float)(0.5));
 }
 
-Short Loki_RAB_Sonar::system_debug_flags_get() {
-  return system_debug_flags_;
+UShort Loki_RAB_Sonar::debug_flags_get() {
+  return debug_flags_;
 }
 
-void Loki_RAB_Sonar::system_debug_flags_set(Short system_debug_flags) {
-  system_debug_flags_ = system_debug_flags;
+void Loki_RAB_Sonar::debug_flags_set(UShort debug_flags) {
+  debug_flags_ = debug_flags;
+  sonar_controller.debug_flags_set(debug_flags);
 }
 
 UByte Loki_RAB_Sonar::sonars_count_get() {
@@ -311,12 +284,12 @@ UByte Loki_RAB_Sonar::sonars_count_get() {
 // The *setup*() routine runs once when you press reset:
 void setup() {
 
+  // Initialize the sonar I/O ports:
   sonar_controller.ports_initialize();
+  sonar_controller.debug_flag_values_set(DBG_FLAG_USENSOR_ERR_DEBUG,
+   DBG_FLAG_USENSOR_DEBUG, DBG_FLAG_USENSOR_RESULTS);
 
-  usonar_producerIndex = 0;
-  usonar_consumerIndex = 0;
-
-  // Initialize pin directions:
+  // Initialize pin directions for motors and encoders:
   pinMode(encoder_l1_pin, INPUT);
   pinMode(encoder_l2_pin, INPUT);
   pinMode(encoder_r1_pin, INPUT);
