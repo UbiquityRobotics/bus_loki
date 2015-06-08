@@ -153,22 +153,22 @@ Sonar_Queue k_sonar_queue(2, &PINK);
 
 // Create one *Sonar* object for each physical HC-SRO4 sonar on Loki.
 // This table is for the Loki Rev. C board:
-Sonar sonar1( 2,  _BV(7), &PING, _BV(2), &k_sonar_queue, &PINK, _BV(7) );
-Sonar sonar2( 2,  _BV(6), &PINA, _BV(0), &k_sonar_queue, &PINK, _BV(6) );
-Sonar sonar3( 2,  _BV(5), &PINA, _BV(1), &k_sonar_queue, &PINK, _BV(5) );
-Sonar sonar4( 2,  _BV(4), &PINA, _BV(2), &k_sonar_queue, &PINK, _BV(4) );
-Sonar sonar5( 2,  _BV(3), &PINA, _BV(3), &k_sonar_queue, &PINK, _BV(3) );
-Sonar sonar6( 2,  _BV(2), &PINA, _BV(4), &k_sonar_queue, &PINK, _BV(2) );
-Sonar sonar7( 2,  _BV(1), &PINA, _BV(5), &k_sonar_queue, &PINK, _BV(1) );
-Sonar sonar8( 2,  _BV(0), &PINA, _BV(6), &k_sonar_queue, &PINK, _BV(0) );
-Sonar sonar9( 1,  _BV(7), &PINA, _BV(7), &j_sonar_queue, &PINJ, _BV(6) );
-Sonar sonar10(1,  _BV(6), &PINJ, _BV(7), &j_sonar_queue, &PINJ, _BV(5) );
-Sonar sonar11(1,  _BV(5), &PINL, _BV(3), &j_sonar_queue, &PINJ, _BV(4) );
-Sonar sonar12(1,  _BV(4), &PINL, _BV(2), &j_sonar_queue, &PINJ, _BV(3) );
-Sonar sonar13(1,  _BV(2), &PINL, _BV(1), &j_sonar_queue, &PINJ, _BV(2) );
-Sonar sonar14(1,  _BV(2), &PINL, _BV(0), &j_sonar_queue, &PINJ, _BV(2) );
-Sonar sonar15(1,  _BV(3), &PING, _BV(4), &j_sonar_queue, &PINJ, _BV(1) );
-Sonar sonar16(1,  _BV(3), &PING, _BV(3), &j_sonar_queue, &PINJ, _BV(1) );
+Sonar sonar1( 2,  7, &PING, 2, &k_sonar_queue, &PINK, 7);
+Sonar sonar2( 2,  6, &PINA, 0, &k_sonar_queue, &PINK, 6);
+Sonar sonar3( 2,  5, &PINA, 1, &k_sonar_queue, &PINK, 5);
+Sonar sonar4( 2,  4, &PINA, 2, &k_sonar_queue, &PINK, 4);
+Sonar sonar5( 2,  3, &PINA, 3, &k_sonar_queue, &PINK, 3);
+Sonar sonar6( 2,  2, &PINA, 4, &k_sonar_queue, &PINK, 2);
+Sonar sonar7( 2,  1, &PINA, 5, &k_sonar_queue, &PINK, 1);
+Sonar sonar8( 2,  0, &PINA, 6, &k_sonar_queue, &PINK, 0);
+Sonar sonar9( 1,  7, &PINA, 7, &j_sonar_queue, &PINJ, 6);
+Sonar sonar10(1,  6, &PINJ, 7, &j_sonar_queue, &PINJ, 5);
+Sonar sonar11(1,  5, &PINL, 3, &j_sonar_queue, &PINJ, 4);
+Sonar sonar12(1,  4, &PINL, 2, &j_sonar_queue, &PINJ, 3);
+Sonar sonar13(1,  2, &PINL, 1, &j_sonar_queue, &PINJ, 2);
+Sonar sonar14(1,  2, &PINL, 0, &j_sonar_queue, &PINJ, 2);
+Sonar sonar15(1,  3, &PING, 4, &j_sonar_queue, &PINJ, 1);
+Sonar sonar16(1,  3, &PING, 3, &j_sonar_queue, &PINJ, 1);
 
 // Create a null-terminated list of the *Sonar* objects:
 Sonar *sonars[] = {
