@@ -150,22 +150,22 @@ static const int motor2_enable_pin = 2;
 
 // Create one *Sonar* object for each physical HC-SRO4 sonar on Loki.
 // This table is for the Loki Rev. C board:
-Sonar sonar1(  1, 2,  _BV(7), &PING, (UByte)_BV(2), &PINK, (UByte)_BV(7) );
-Sonar sonar2(  2, 2,  _BV(6), &PINA, (UByte)_BV(0), &PINK, (UByte)_BV(6) );
-Sonar sonar3(  3, 2,  _BV(5), &PINA, (UByte)_BV(1), &PINK, (UByte)_BV(5) );
-Sonar sonar4(  4, 2,  _BV(4), &PINA, (UByte)_BV(2), &PINK, (UByte)_BV(4) );
-Sonar sonar5(  5, 2,  _BV(3), &PINA, (UByte)_BV(3), &PINK, (UByte)_BV(3) );
-Sonar sonar6(  6, 2,  _BV(2), &PINA, (UByte)_BV(4), &PINK, (UByte)_BV(2) );
-Sonar sonar7(  7, 2,  _BV(1), &PINA, (UByte)_BV(5), &PINK, (UByte)_BV(1) );
-Sonar sonar8(  8, 2,  _BV(0), &PINA, (UByte)_BV(6), &PINK, (UByte)_BV(0) );
-Sonar sonar9(  9, 1,  _BV(7), &PINA, (UByte)_BV(7), &PINJ, (UByte)_BV(6) );
-Sonar sonar10(10, 1,  _BV(6), &PINJ, (UByte)_BV(7), &PINJ, (UByte)_BV(5) );
-Sonar sonar11(11, 1,  _BV(5), &PINL, (UByte)_BV(3), &PINK, (UByte)_BV(4) );
-Sonar sonar12(12, 1,  _BV(4), &PINL, (UByte)_BV(2), &PINK, (UByte)_BV(3) );
-Sonar sonar13(13, 1,  _BV(2), &PINL, (UByte)_BV(1), &PINK, (UByte)_BV(2) );
-Sonar sonar14(14, 1,  _BV(2), &PINL, (UByte)_BV(0), &PINK, (UByte)_BV(2) );
-Sonar sonar15(15, 1,  _BV(3), &PING, (UByte)_BV(4), &PINK, (UByte)_BV(1) );
-Sonar sonar16(16, 1,  _BV(3), &PING, (UByte)_BV(3), &PINK, (UByte)_BV(1) );
+Sonar sonar1( 2,  _BV(7), &PING, (UByte)_BV(2), &PINK, (UByte)_BV(7) );
+Sonar sonar2( 2,  _BV(6), &PINA, (UByte)_BV(0), &PINK, (UByte)_BV(6) );
+Sonar sonar3( 2,  _BV(5), &PINA, (UByte)_BV(1), &PINK, (UByte)_BV(5) );
+Sonar sonar4( 2,  _BV(4), &PINA, (UByte)_BV(2), &PINK, (UByte)_BV(4) );
+Sonar sonar5( 2,  _BV(3), &PINA, (UByte)_BV(3), &PINK, (UByte)_BV(3) );
+Sonar sonar6( 2,  _BV(2), &PINA, (UByte)_BV(4), &PINK, (UByte)_BV(2) );
+Sonar sonar7( 2,  _BV(1), &PINA, (UByte)_BV(5), &PINK, (UByte)_BV(1) );
+Sonar sonar8( 2,  _BV(0), &PINA, (UByte)_BV(6), &PINK, (UByte)_BV(0) );
+Sonar sonar9( 1,  _BV(7), &PINA, (UByte)_BV(7), &PINJ, (UByte)_BV(6) );
+Sonar sonar10(1,  _BV(6), &PINJ, (UByte)_BV(7), &PINJ, (UByte)_BV(5) );
+Sonar sonar11(1,  _BV(5), &PINL, (UByte)_BV(3), &PINK, (UByte)_BV(4) );
+Sonar sonar12(1,  _BV(4), &PINL, (UByte)_BV(2), &PINK, (UByte)_BV(3) );
+Sonar sonar13(1,  _BV(2), &PINL, (UByte)_BV(1), &PINK, (UByte)_BV(2) );
+Sonar sonar14(1,  _BV(2), &PINL, (UByte)_BV(0), &PINK, (UByte)_BV(2) );
+Sonar sonar15(1,  _BV(3), &PING, (UByte)_BV(4), &PINK, (UByte)_BV(1) );
+Sonar sonar16(1,  _BV(3), &PING, (UByte)_BV(3), &PINK, (UByte)_BV(1) );
 
 // Create a null-terminated list of the *Sonar* objects:
 Sonar *sonars[] = {
@@ -204,7 +204,7 @@ Loki_Motor_Encoder left_motor_encoder(motor1_input1_pin, motor1_input2_pin,
  motor1_enable_pin, &encoder1);
 Loki_Motor_Encoder right_motor_encoder(motor2_input1_pin, motor2_input2_pin,
  motor2_enable_pin, &encoder2);
-Loki_RAB_Sonar loki_rab_sonar((UART *)&debug_uart);
+Loki_RAB_Sonar loki_rab_sonar((UART *)debug_uart);
 
 Bridge bridge(&avr_uart0, &avr_uart1, &avr_uart0, &bus_slave,
  (Bus_Motor_Encoder *)&left_motor_encoder,
@@ -261,10 +261,13 @@ Loki_RAB_Sonar::Loki_RAB_Sonar(UART *debug_uart) : RAB_Sonar(debug_uart) {
   debug_flags_ = 0;
 }
 
-UShort Loki_RAB_Sonar::ping_get(UByte sonar) {
+UShort Loki_RAB_Sonar::ping_get(UByte sonar_index) {
   // FIXME: Do this in fixed point!!!
-  return (Short)(sonar_controller.getLastDistInMm(sonar)/(float)(10.0) + 
-   (float)(0.5));
+  debug_uart_->integer_print(sonar_index);
+  debug_uart_->string_print((Text)":");
+  UShort distance = sonar_controller.mm_distance_get(sonar_index);
+  // Round to closes centimeter:
+  return (distance + 5) / 10;
 }
 
 UShort Loki_RAB_Sonar::debug_flags_get() {
@@ -309,6 +312,8 @@ void setup() {
   leds_byte_write(0);
   host_uart->begin(16000000L, 115200L, (Character *)"8N1");
   //host_uart->print((Text)"Double echo\r\n");
+
+  debug_uart->print((Text)"Hello!\r\n");
 
   switch (BUS_LOKI_PROGRAM) {
     case BUS_LOKI_PROGRAM_ENCODERS_TO_LEDS: {
