@@ -148,24 +148,27 @@ static const int motor2_enable_pin = 2;
 // to shuffle the table to get faster updates around each side sort of like
 // how you tighten bolts on a wheel by doing the one across the center.
 
+Sonar_Queue j_sonar_queue(1, &PINJ);
+Sonar_Queue k_sonar_queue(2, &PINK);
+
 // Create one *Sonar* object for each physical HC-SRO4 sonar on Loki.
 // This table is for the Loki Rev. C board:
-Sonar sonar1( 2,  _BV(7), &PING, (UByte)_BV(2), &PINK, (UByte)_BV(7) );
-Sonar sonar2( 2,  _BV(6), &PINA, (UByte)_BV(0), &PINK, (UByte)_BV(6) );
-Sonar sonar3( 2,  _BV(5), &PINA, (UByte)_BV(1), &PINK, (UByte)_BV(5) );
-Sonar sonar4( 2,  _BV(4), &PINA, (UByte)_BV(2), &PINK, (UByte)_BV(4) );
-Sonar sonar5( 2,  _BV(3), &PINA, (UByte)_BV(3), &PINK, (UByte)_BV(3) );
-Sonar sonar6( 2,  _BV(2), &PINA, (UByte)_BV(4), &PINK, (UByte)_BV(2) );
-Sonar sonar7( 2,  _BV(1), &PINA, (UByte)_BV(5), &PINK, (UByte)_BV(1) );
-Sonar sonar8( 2,  _BV(0), &PINA, (UByte)_BV(6), &PINK, (UByte)_BV(0) );
-Sonar sonar9( 1,  _BV(7), &PINA, (UByte)_BV(7), &PINJ, (UByte)_BV(6) );
-Sonar sonar10(1,  _BV(6), &PINJ, (UByte)_BV(7), &PINJ, (UByte)_BV(5) );
-Sonar sonar11(1,  _BV(5), &PINL, (UByte)_BV(3), &PINK, (UByte)_BV(4) );
-Sonar sonar12(1,  _BV(4), &PINL, (UByte)_BV(2), &PINK, (UByte)_BV(3) );
-Sonar sonar13(1,  _BV(2), &PINL, (UByte)_BV(1), &PINK, (UByte)_BV(2) );
-Sonar sonar14(1,  _BV(2), &PINL, (UByte)_BV(0), &PINK, (UByte)_BV(2) );
-Sonar sonar15(1,  _BV(3), &PING, (UByte)_BV(4), &PINK, (UByte)_BV(1) );
-Sonar sonar16(1,  _BV(3), &PING, (UByte)_BV(3), &PINK, (UByte)_BV(1) );
+Sonar sonar1( 2,  _BV(7), &PING, _BV(2), &k_sonar_queue, &PINK, _BV(7) );
+Sonar sonar2( 2,  _BV(6), &PINA, _BV(0), &k_sonar_queue, &PINK, _BV(6) );
+Sonar sonar3( 2,  _BV(5), &PINA, _BV(1), &k_sonar_queue, &PINK, _BV(5) );
+Sonar sonar4( 2,  _BV(4), &PINA, _BV(2), &k_sonar_queue, &PINK, _BV(4) );
+Sonar sonar5( 2,  _BV(3), &PINA, _BV(3), &k_sonar_queue, &PINK, _BV(3) );
+Sonar sonar6( 2,  _BV(2), &PINA, _BV(4), &k_sonar_queue, &PINK, _BV(2) );
+Sonar sonar7( 2,  _BV(1), &PINA, _BV(5), &k_sonar_queue, &PINK, _BV(1) );
+Sonar sonar8( 2,  _BV(0), &PINA, _BV(6), &k_sonar_queue, &PINK, _BV(0) );
+Sonar sonar9( 1,  _BV(7), &PINA, _BV(7), &j_sonar_queue, &PINJ, _BV(6) );
+Sonar sonar10(1,  _BV(6), &PINJ, _BV(7), &j_sonar_queue, &PINJ, _BV(5) );
+Sonar sonar11(1,  _BV(5), &PINL, _BV(3), &j_sonar_queue, &PINJ, _BV(4) );
+Sonar sonar12(1,  _BV(4), &PINL, _BV(2), &j_sonar_queue, &PINJ, _BV(3) );
+Sonar sonar13(1,  _BV(2), &PINL, _BV(1), &j_sonar_queue, &PINJ, _BV(2) );
+Sonar sonar14(1,  _BV(2), &PINL, _BV(0), &j_sonar_queue, &PINJ, _BV(2) );
+Sonar sonar15(1,  _BV(3), &PING, _BV(4), &j_sonar_queue, &PINJ, _BV(1) );
+Sonar sonar16(1,  _BV(3), &PING, _BV(3), &j_sonar_queue, &PINJ, _BV(1) );
 
 // Create a null-terminated list of the *Sonar* objects:
 Sonar *sonars[] = {
