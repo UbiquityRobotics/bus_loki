@@ -285,10 +285,6 @@ UByte Loki_RAB_Sonar::sonars_count_get() {
 void setup() {
 
   // Initialize the sonar I/O ports:
-  sonar_controller.ports_initialize();
-  sonar_controller.debug_flag_values_set(DBG_FLAG_USENSOR_ERR_DEBUG,
-   DBG_FLAG_USENSOR_DEBUG, DBG_FLAG_USENSOR_RESULTS);
-
   // Initialize pin directions for motors and encoders:
   pinMode(encoder_l1_pin, INPUT);
   pinMode(encoder_l2_pin, INPUT);
@@ -340,20 +336,24 @@ void setup() {
 
       // The Pin Change interrupts are enabled for each bit on Bank 1 
       // As that pin is used in the measurement sampling code, not here
-      PCMSK1 = 0;
-      PCICR |= _BV(1);
+      //PCMSK1 = 0;
+      //PCICR |= _BV(1);
 
       // Set up for interrupts on Bank 2 pin changes or pins 23:16
       // These are used for ultrasonic sonar units mostly in front of Loki
       // The Pin Change interrupts are enabled for each bit on Bank 1 
       // As that pin is used in the measurement sampling code, not here
-      PCMSK2 = 0;
-      PCICR |= _BV(2);
-
+      //PCMSK2 = 0;
+      //PCICR |= _BV(2);
 
       // Enable global interrupts by setting the I bit (7th bit) in the
       // status register:
       //SREG |= _BV(7);
+
+      // Initialize *sonar_controller*:
+      sonar_controller.initialize();
+      sonar_controller.debug_flag_values_set(DBG_FLAG_USENSOR_ERR_DEBUG,
+       DBG_FLAG_USENSOR_DEBUG, DBG_FLAG_USENSOR_RESULTS);
 
       break;
     }
