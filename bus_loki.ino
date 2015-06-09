@@ -151,24 +151,30 @@ static const int motor2_enable_pin = 2;
 Sonar_Queue j_sonar_queue(1, &PINJ);
 Sonar_Queue k_sonar_queue(2, &PINK);
 
+Sonar_Queue *sonar_queues[] = {
+  &j_sonar_queue,
+  &k_sonar_queue,
+  (Sonar_Queue *)0,
+};
+
 // Create one *Sonar* object for each physical HC-SRO4 sonar on Loki.
 // This table is for the Loki Rev. C board:
-Sonar sonar1( 2,  7, &PING, 2, &k_sonar_queue, &PINK, 7);
-Sonar sonar2( 2,  6, &PINA, 0, &k_sonar_queue, &PINK, 6);
-Sonar sonar3( 2,  5, &PINA, 1, &k_sonar_queue, &PINK, 5);
-Sonar sonar4( 2,  4, &PINA, 2, &k_sonar_queue, &PINK, 4);
-Sonar sonar5( 2,  3, &PINA, 3, &k_sonar_queue, &PINK, 3);
-Sonar sonar6( 2,  2, &PINA, 4, &k_sonar_queue, &PINK, 2);
-Sonar sonar7( 2,  1, &PINA, 5, &k_sonar_queue, &PINK, 1);
-Sonar sonar8( 2,  0, &PINA, 6, &k_sonar_queue, &PINK, 0);
-Sonar sonar9( 1,  7, &PINA, 7, &j_sonar_queue, &PINJ, 6);
-Sonar sonar10(1,  6, &PINJ, 7, &j_sonar_queue, &PINJ, 5);
-Sonar sonar11(1,  5, &PINL, 3, &j_sonar_queue, &PINJ, 4);
-Sonar sonar12(1,  4, &PINL, 2, &j_sonar_queue, &PINJ, 3);
-Sonar sonar13(1,  2, &PINL, 1, &j_sonar_queue, &PINJ, 2);
-Sonar sonar14(1,  2, &PINL, 0, &j_sonar_queue, &PINJ, 2);
-Sonar sonar15(1,  3, &PING, 4, &j_sonar_queue, &PINJ, 1);
-Sonar sonar16(1,  3, &PING, 3, &j_sonar_queue, &PINJ, 1);
+Sonar sonar1( &PING, 2, &k_sonar_queue, 7, &PINK, 7);
+Sonar sonar2( &PINA, 0, &k_sonar_queue, 6, &PINK, 6);
+Sonar sonar3( &PINA, 1, &k_sonar_queue, 5, &PINK, 5);
+Sonar sonar4( &PINA, 2, &k_sonar_queue, 4, &PINK, 4);
+Sonar sonar5( &PINA, 3, &k_sonar_queue, 3, &PINK, 3);
+Sonar sonar6( &PINA, 4, &k_sonar_queue, 2, &PINK, 2);
+Sonar sonar7( &PINA, 5, &k_sonar_queue, 1, &PINK, 1);
+Sonar sonar8( &PINA, 6, &k_sonar_queue, 0, &PINK, 0);
+Sonar sonar9( &PINA, 7, &j_sonar_queue, 7, &PINJ, 6);
+Sonar sonar10(&PINJ, 7, &j_sonar_queue, 6, &PINJ, 5);
+Sonar sonar11(&PINL, 3, &j_sonar_queue, 5, &PINJ, 4);
+Sonar sonar12(&PINL, 2, &j_sonar_queue, 4, &PINJ, 3);
+Sonar sonar13(&PINL, 1, &j_sonar_queue, 2, &PINJ, 2);
+Sonar sonar14(&PINL, 0, &j_sonar_queue, 2, &PINJ, 2);
+Sonar sonar15(&PING, 4, &j_sonar_queue, 3, &PINJ, 1);
+Sonar sonar16(&PING, 3, &j_sonar_queue, 3, &PINJ, 1);
 
 // Create a null-terminated list of the *Sonar* objects:
 Sonar *sonars[] = {
@@ -214,7 +220,7 @@ Bridge bridge(&avr_uart0, &avr_uart1, &avr_uart0, &bus_slave,
  (Bus_Motor_Encoder *)&right_motor_encoder,
  (RAB_Sonar *)&loki_rab_sonar);
 
-static Sonar_Controller sonar_controller((UART *)debug_uart, sonars);
+Sonar_Controller sonar_controller((UART *)debug_uart, sonars, sonar_queues);
 
 void leds_byte_write(char byte) {
   //digitalWrite(led0_pin, (byte & 1) ? LOW : HIGH);
