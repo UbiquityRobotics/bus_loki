@@ -197,6 +197,14 @@ Sonar *sonars[] = {
   (Sonar *)0,	// Put a null on the end to terminate sonar list:
 };
 
+UByte sonars_schedule[] = {
+  0, 4, 8, 12, 250,
+  1, 5, 9, 13, 250,
+  2, 6, 10, 14, 250,
+  3, 7, 15, 250,
+  255,
+};
+
 // Define the UART's:
 NULL_UART null_uart;
 AVR_UART *bus_uart = &avr_uart1;
@@ -220,7 +228,8 @@ Bridge bridge(&avr_uart0, &avr_uart1, &avr_uart0, &bus_slave,
  (Bus_Motor_Encoder *)&right_motor_encoder,
  (RAB_Sonar *)&loki_rab_sonar);
 
-Sonar_Controller sonar_controller((UART *)debug_uart, sonars, sonar_queues);
+Sonars_Controller sonars_controller((UART *)debug_uart,
+ sonars, sonar_queues, sonars_schedule);
 
 void leds_byte_write(char byte) {
   //digitalWrite(led0_pin, (byte & 1) ? LOW : HIGH);
@@ -257,13 +266,13 @@ ISR(PCINT0_vect) {
 // *PCINT1_vect*() is the first ISR to gather sonar bounce pulse widths.
 // This ISR processes pin changes for Bank 1 which is for PCINT pins 15:8:
 ISR(PCINT1_vect) {
-  Sonar_Controller::interrupt_handler(1);
+  Sonars_Controller::interrupt_handler(1);
 }
 
 // *PCINT2_vect*() is the second ISR to gather sonar bounce pulse widths.
 // This ISR processes pin changes for Bank 2 which is for PCINT pins 23:16:
 ISR(PCINT2_vect) {
-  Sonar_Controller::interrupt_handler(2);
+  Sonars_Controller::interrupt_handler(2);
 }
 
 Loki_RAB_Sonar::Loki_RAB_Sonar(UART *debug_uart) : RAB_Sonar(debug_uart) {
@@ -274,7 +283,7 @@ UShort Loki_RAB_Sonar::ping_get(UByte sonar_index) {
   // FIXME: Do this in fixed point!!!
   debug_uart_->integer_print(sonar_index);
   debug_uart_->string_print((Text)":");
-  UShort distance = sonar_controller.mm_distance_get(sonar_index);
+  UShort distance = sonars_controller.mm_distance_get(sonar_index);
   // Round to closes centimeter:
   return (distance + 5) / 10;
 }
@@ -285,7 +294,7 @@ UShort Loki_RAB_Sonar::debug_flags_get() {
 
 void Loki_RAB_Sonar::debug_flags_set(UShort debug_flags) {
   debug_flags_ = debug_flags;
-  sonar_controller.debug_flags_set(debug_flags);
+  sonars_controller.debug_flags_set(debug_flags);
 }
 
 UByte Loki_RAB_Sonar::sonars_count_get() {
@@ -364,9 +373,9 @@ void setup() {
       // status register:
       //SREG |= _BV(7);
 
-      // Initialize *sonar_controller*:
-      sonar_controller.initialize();
-      sonar_controller.debug_flag_values_set(DBG_FLAG_USENSOR_ERR_DEBUG,
+      // Initialize *sonars_controller*:
+      sonars_controller.initialize();
+      sonars_controller.debug_flag_values_set(DBG_FLAG_USENSOR_ERR_DEBUG,
        DBG_FLAG_USENSOR_DEBUG, DBG_FLAG_USENSOR_RESULTS);
 
       break;
@@ -516,7 +525,7 @@ void loop() {
 	encoder1_state = (unsigned char)(state_transition & 0x7);
       }
 
-      sonar_controller.poll();
+      sonars_controller.poll();
       
       bridge.loop(TEST);
       break;
