@@ -126,6 +126,12 @@ static const int motor2_input2_pin = 3;
 static const int motor2_enable_pin = 2;
 
 
+// Define the UART's:
+NULL_UART null_uart;
+AVR_UART *bus_uart = &avr_uart1;
+AVR_UART *debug_uart = &avr_uart0;
+AVR_UART *host_uart = &avr_uart0;
+
 // Encapsulated hardware specifics for Loki Platform
 // Pin change interrupts are involved so we have a little table to help
 // sort them out that must match the hardware.
@@ -148,8 +154,8 @@ static const int motor2_enable_pin = 2;
 // to shuffle the table to get faster updates around each side sort of like
 // how you tighten bolts on a wheel by doing the one across the center.
 
-Sonar_Queue j_sonar_queue(1, &PINJ);
-Sonar_Queue k_sonar_queue(2, &PINK);
+Sonar_Queue j_sonar_queue(1, &PINJ, debug_uart);
+Sonar_Queue k_sonar_queue(2, &PINK, debug_uart);
 
 Sonar_Queue *sonar_queues[] = {
   &j_sonar_queue,
@@ -168,32 +174,32 @@ Sonar sonar6( &PINA, 4, &k_sonar_queue, 2, &PINK, 2);
 Sonar sonar7( &PINA, 5, &k_sonar_queue, 1, &PINK, 1);
 Sonar sonar8( &PINA, 6, &k_sonar_queue, 0, &PINK, 0);
 Sonar sonar9( &PINA, 7, &j_sonar_queue, 7, &PINJ, 6);
-Sonar sonar10(&PINJ, 7, &j_sonar_queue, 6, &PINJ, 5);
-Sonar sonar11(&PINL, 3, &j_sonar_queue, 5, &PINJ, 4);
+Sonar sonar10(&PINJ, 7, &j_sonar_queue, 6, &PINJ, 5);	// *
+Sonar sonar11(&PINL, 3, &j_sonar_queue, 5, &PINJ, 4);	// *
 Sonar sonar12(&PINL, 2, &j_sonar_queue, 4, &PINJ, 3);
-Sonar sonar13(&PINL, 1, &j_sonar_queue, 2, &PINJ, 2);
-Sonar sonar14(&PINL, 0, &j_sonar_queue, 2, &PINJ, 2);
-Sonar sonar15(&PING, 4, &j_sonar_queue, 3, &PINJ, 1);
-Sonar sonar16(&PING, 3, &j_sonar_queue, 3, &PINJ, 1);
+Sonar sonar13(&PINL, 1, &j_sonar_queue, 2, &PINJ, 1);	// *
+Sonar sonar14(&PINL, 0, &j_sonar_queue, 2, &PINJ, 1);
+Sonar sonar15(&PING, 4, &j_sonar_queue, 3, &PINJ, 2);
+Sonar sonar16(&PING, 3, &j_sonar_queue, 3, &PINJ, 2);
 
 // Create a null-terminated list of the *Sonar* objects:
 Sonar *sonars[] = {
-  &sonar1,
-  &sonar2,
-  &sonar3,
-  &sonar4,
-  &sonar5,
-  &sonar6,
-  &sonar7,
-  &sonar8,
-  &sonar9,
-  &sonar10,
-  &sonar11,
-  &sonar12,
-  &sonar13,
-  &sonar14,
-  &sonar15,
-  &sonar16,
+  &sonar1,	// 0
+  &sonar2,	// 1
+  &sonar3,	// 2
+  &sonar4,	// 3
+  &sonar5,	// 4
+  &sonar6,	// 5
+  &sonar7,	// 6
+  &sonar8,	// 7
+  &sonar9,	// 8
+  &sonar10,	// 9
+  &sonar11,	// 10
+  &sonar12,	// 11
+  &sonar13,	// 12
+  &sonar14,	// 13
+  &sonar15,	// 14
+  &sonar16,	// 15
   (Sonar *)0,	// Put a null on the end to terminate sonar list:
 };
 
@@ -205,11 +211,24 @@ UByte sonars_schedule[] = {
   Sonars_Controller::SCHEDULE_END,
 };
 
-// Define the UART's:
-NULL_UART null_uart;
-AVR_UART *bus_uart = &avr_uart1;
-AVR_UART *debug_uart = &avr_uart0;
-AVR_UART *host_uart = &avr_uart0;
+UByte xsonars_schedule[] = {
+  0, Sonars_Controller::GROUP_END,	// 0
+  1, Sonars_Controller::GROUP_END,	// 2
+  2, Sonars_Controller::GROUP_END,	// 4
+  3, Sonars_Controller::GROUP_END,	// 6
+  4, Sonars_Controller::GROUP_END,	// 8
+  5, Sonars_Controller::GROUP_END,	// 10
+  6, Sonars_Controller::GROUP_END,	// 12
+  7, Sonars_Controller::GROUP_END,	// 14
+  8, Sonars_Controller::GROUP_END,	// 16
+  9, Sonars_Controller::GROUP_END,	// 18* => sonar10
+  10, Sonars_Controller::GROUP_END,	// 20* => sonar11
+  12, Sonars_Controller::GROUP_END,	// 22* => sonar13
+  13, Sonars_Controller::GROUP_END,	// 24
+  14, Sonars_Controller::GROUP_END,	// 26
+  15, Sonars_Controller::GROUP_END,	// 28
+  Sonars_Controller::SCHEDULE_END,	// 30
+};
 
 // The two encoder values:
 Integer encoder1 = 0;
@@ -266,13 +285,15 @@ ISR(PCINT0_vect) {
 // *PCINT1_vect*() is the first ISR to gather sonar bounce pulse widths.
 // This ISR processes pin changes for Bank 1 which is for PCINT pins 15:8:
 ISR(PCINT1_vect) {
-  Sonars_Controller::interrupt_handler(1);
+  //Sonars_Controller::interrupt_handler(1);
+  j_sonar_queue.interrupt_service_routine();
 }
 
 // *PCINT2_vect*() is the second ISR to gather sonar bounce pulse widths.
 // This ISR processes pin changes for Bank 2 which is for PCINT pins 23:16:
 ISR(PCINT2_vect) {
-  Sonars_Controller::interrupt_handler(2);
+  //Sonars_Controller::interrupt_handler(2);
+  k_sonar_queue.interrupt_service_routine();
 }
 
 Loki_RAB_Sonar::Loki_RAB_Sonar(UART *debug_uart) : RAB_Sonar(debug_uart) {
@@ -334,6 +355,8 @@ void setup() {
   //host_uart->print((Text)"Double echo\r\n");
 
   debug_uart->print((Text)"Hello!\r\n");
+  debug_uart->integer_print(sonars_controller.sonars_schedule_size_get());
+  debug_uart->print((Text)"\r\n");
 
   switch (BUS_LOKI_PROGRAM) {
     case BUS_LOKI_PROGRAM_ENCODERS_TO_LEDS: {
@@ -527,7 +550,7 @@ void loop() {
 	encoder1_state = (unsigned char)(state_transition & 0x7);
       }
 
-      sonars_controller.poll();
+      sonars_controller.xpoll();
       
       bridge.loop(TEST);
       break;
