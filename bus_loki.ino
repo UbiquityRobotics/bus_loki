@@ -285,14 +285,12 @@ ISR(PCINT0_vect) {
 // *PCINT1_vect*() is the first ISR to gather sonar bounce pulse widths.
 // This ISR processes pin changes for Bank 1 which is for PCINT pins 15:8:
 ISR(PCINT1_vect) {
-  //Sonars_Controller::interrupt_handler(1);
   j_sonar_queue.interrupt_service_routine();
 }
 
 // *PCINT2_vect*() is the second ISR to gather sonar bounce pulse widths.
 // This ISR processes pin changes for Bank 2 which is for PCINT pins 23:16:
 ISR(PCINT2_vect) {
-  //Sonars_Controller::interrupt_handler(2);
   k_sonar_queue.interrupt_service_routine();
 }
 
@@ -550,7 +548,7 @@ void loop() {
 	encoder1_state = (unsigned char)(state_transition & 0x7);
       }
 
-      sonars_controller.xpoll();
+      sonars_controller.poll();
       
       bridge.loop(TEST);
       break;
