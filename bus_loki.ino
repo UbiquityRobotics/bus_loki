@@ -198,11 +198,11 @@ Sonar *sonars[] = {
 };
 
 UByte sonars_schedule[] = {
-  0, 4, 8, 12, 250,
-  1, 5, 9, 13, 250,
-  2, 6, 10, 14, 250,
-  3, 7, 15, 250,
-  255,
+  0, 4,  8, 12, Sonars_Controller::GROUP_END,
+  1, 5,  9, 13, Sonars_Controller::GROUP_END,
+  2, 6, 10, 14, Sonars_Controller::GROUP_END,
+  3, 7, 15,     Sonars_Controller::GROUP_END,
+  Sonars_Controller::SCHEDULE_END,
 };
 
 // Define the UART's:
@@ -304,6 +304,8 @@ UByte Loki_RAB_Sonar::sonars_count_get() {
 // Setup instance of class for Loki Ultrasonic Sensor support
 // The *setup*() routine runs once when you press reset:
 void setup() {
+  //debug_uart->begin(16000000L, 115200L, (Character *)"8N1");
+  //debug_uart->string_print((Text)"Hello!\r\n");
 
   // Initialize the sonar I/O ports:
   // Initialize pin directions for motors and encoders:
