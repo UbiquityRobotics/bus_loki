@@ -320,12 +320,11 @@ UShort Loki_RAB_Sonar::ping_get(UByte sonar_index) {
 }
 
 UShort Loki_RAB_Sonar::debug_flags_get() {
-  return debug_flags_;
+  return 0;
 }
 
 void Loki_RAB_Sonar::debug_flags_set(UShort debug_flags) {
-  debug_flags_ = debug_flags;
-  sonars_controller.debug_flags_set(debug_flags);
+  // Do nothing.
 }
 
 UByte Loki_RAB_Sonar::sonars_count_get() {
@@ -410,8 +409,6 @@ void setup() {
 
       // Initialize *sonars_controller*:
       sonars_controller.initialize();
-      sonars_controller.debug_flag_values_set(DBG_FLAG_USENSOR_ERR_DEBUG,
-       DBG_FLAG_USENSOR_DEBUG, DBG_FLAG_USENSOR_RESULTS);
 
       break;
     }
