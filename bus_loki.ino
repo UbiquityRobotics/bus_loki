@@ -184,23 +184,35 @@ Sonar sonar16(&PING, 3, &j_sonar_queue, 3, &PINJ, 2);
 
 // Create a null-terminated list of the *Sonar* objects:
 Sonar *sonars[] = {
-  &sonar1,	// 0
-  &sonar2,	// 1
-  &sonar3,	// 2
-  &sonar4,	// 3
-  &sonar5,	// 4
-  &sonar6,	// 5
-  &sonar7,	// 6
-  &sonar8,	// 7
-  &sonar9,	// 8
-  &sonar10,	// 9
-  &sonar11,	// 10
-  &sonar12,	// 11
-  &sonar13,	// 12
-  &sonar14,	// 13
-  &sonar15,	// 14
-  &sonar16,	// 15
+  &sonar1,
+  &sonar2,
+  &sonar3,
+  &sonar4,
+  &sonar5,
+  &sonar6,
+  &sonar7,
+  &sonar8,
+  &sonar9,
+  &sonar10,
+  &sonar11,
+  &sonar12,
+  &sonar13,
+  &sonar14,
+  &sonar15,
+  &sonar16,
   (Sonar *)0,	// Put a null on the end to terminate sonar list:
+};
+
+UByte ysonars_schedule[] = {
+   0,  4, Sonars_Controller::GROUP_END,
+   8, 12, Sonars_Controller::GROUP_END,
+   1,  5, Sonars_Controller::GROUP_END,
+   9, 13, Sonars_Controller::GROUP_END,
+   2,  6, Sonars_Controller::GROUP_END,
+  10, 14, Sonars_Controller::GROUP_END,
+   3,  7, Sonars_Controller::GROUP_END,
+  15,     Sonars_Controller::GROUP_END,
+  Sonars_Controller::SCHEDULE_END,
 };
 
 UByte sonars_schedule[] = {
@@ -212,22 +224,22 @@ UByte sonars_schedule[] = {
 };
 
 UByte xsonars_schedule[] = {
-  0, Sonars_Controller::GROUP_END,	// 0
-  1, Sonars_Controller::GROUP_END,	// 2
-  2, Sonars_Controller::GROUP_END,	// 4
-  3, Sonars_Controller::GROUP_END,	// 6
-  4, Sonars_Controller::GROUP_END,	// 8
-  5, Sonars_Controller::GROUP_END,	// 10
-  6, Sonars_Controller::GROUP_END,	// 12
-  7, Sonars_Controller::GROUP_END,	// 14
-  8, Sonars_Controller::GROUP_END,	// 16
-  9, Sonars_Controller::GROUP_END,	// 18* => sonar10
-  10, Sonars_Controller::GROUP_END,	// 20* => sonar11
-  12, Sonars_Controller::GROUP_END,	// 22* => sonar13
-  13, Sonars_Controller::GROUP_END,	// 24
-  14, Sonars_Controller::GROUP_END,	// 26
-  15, Sonars_Controller::GROUP_END,	// 28
-  Sonars_Controller::SCHEDULE_END,	// 30
+  0, Sonars_Controller::GROUP_END,
+  1, Sonars_Controller::GROUP_END,
+  2, Sonars_Controller::GROUP_END,
+  3, Sonars_Controller::GROUP_END,
+  4, Sonars_Controller::GROUP_END,
+  5, Sonars_Controller::GROUP_END,
+  6, Sonars_Controller::GROUP_END,
+  7, Sonars_Controller::GROUP_END,
+  8, Sonars_Controller::GROUP_END,
+  9, Sonars_Controller::GROUP_END,
+  10, Sonars_Controller::GROUP_END,
+  12, Sonars_Controller::GROUP_END,
+  13, Sonars_Controller::GROUP_END,
+  14, Sonars_Controller::GROUP_END,
+  15, Sonars_Controller::GROUP_END,
+  Sonars_Controller::SCHEDULE_END,
 };
 
 // The two encoder values:
@@ -304,7 +316,7 @@ UShort Loki_RAB_Sonar::ping_get(UByte sonar_index) {
   debug_uart_->string_print((Text)":");
   UShort distance = sonars_controller.mm_distance_get(sonar_index);
   // Round to closes centimeter:
-  return (distance + 5) / 10;
+  return distance;
 }
 
 UShort Loki_RAB_Sonar::debug_flags_get() {
