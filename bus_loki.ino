@@ -364,9 +364,9 @@ void setup() {
   host_uart->begin(16000000L, 115200L, (Character *)"8N1");
   //host_uart->print((Text)"Double echo\r\n");
 
-  debug_uart->print((Text)"Hello!\r\n");
-  debug_uart->integer_print(sonars_controller.sonars_schedule_size_get());
-  debug_uart->print((Text)"\r\n");
+  //debug_uart->print((Text)"Hello!\r\n");
+  //debug_uart->integer_print(sonars_controller.sonars_schedule_size_get());
+  //debug_uart->print((Text)"\r\n");
 
   switch (BUS_LOKI_PROGRAM) {
     case BUS_LOKI_PROGRAM_ENCODERS_TO_LEDS: {
