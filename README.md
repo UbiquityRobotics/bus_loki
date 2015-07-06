@@ -51,15 +51,30 @@ processor board.
 
 (These instructions are too brief!!!)
 
-Do the following:
+Do the following: (The first setup step is a turse set of reminders and not detailed)
 
-1. Run `roscore` on RasPi2
+1. Initial setup includes booting the RasPi2 and the source ./devel/setup.bash done.
+   Have the my_arduino_params.yaml file copied over from my_arduino_params.yaml.loki
+   Run 'sudo mgetty -s 115200 /dev/ttyAMA0' on the RaspPi2 to setup serial port
+   To run fiducial localization you need a calibrated camera 'yaml' file
+   and the size of your fiducials needs to be setup in a fiducial launch file.
+   Properly configure ROS_MASTER_URI on the RaspPi as well as laptop to run 'rviz'.
+   (This is a bit involved and we may add to this section later as needed)
 
-2. Run `roslaunch ros_arduino_python arduino.launch` on RasPi2
+2  Hit the reset switch on the Loki near the green leds and then
+   Run `roslaunch ros_arduino_python arduino.launch` on RasPi2
+   You must not see any errors that stop the launch.
 
-3. Run `roslaunch fiducial_lib loki.launch` on laptop
+3. For joystick control you need either the PS2 or XBox usb dongle pluged into the RasPi2.
+   Run 'roslaunch joy_input joystick.launch' on the RasPi2 if you want joystick control.
+   Pair your controller (XBox: Tiny reset in back then press chrome X key, PS2: 'Hold select key')
+   Hold the left hand button with index finger then left joystick will control Robot movements
 
-4. Run `rviz` on laptop.
+4. Run 'roslaunch fiducial_slam fiducial_raspi_3d.launch` on RasPi2
+   (mjstn - Is this True????:   Run `roslaunch fiducial_lib loki.launch` on laptop)
+   (For details refer to:  https://github.com/UbiquityRobotics/fiducials README.md)
+
+5. Run `rviz` on laptop.
 
    * In left sidebar, under `Global Option` change `Fixed Frame
      to `base_link`.
