@@ -203,7 +203,8 @@ Sonar *sonars[] = {
   (Sonar *)0,	// Put a null on the end to terminate sonar list:
 };
 
-UByte ysonars_schedule[] = {
+// 2 sonars in each scan group
+UByte sonars_schedule_dual[] = {
    0,  4, Sonars_Controller::GROUP_END,
    8, 12, Sonars_Controller::GROUP_END,
    1,  5, Sonars_Controller::GROUP_END,
@@ -215,7 +216,8 @@ UByte ysonars_schedule[] = {
   Sonars_Controller::SCHEDULE_END,
 };
 
-UByte sonars_schedule[] = {
+// 4 sonars in each scan group
+UByte sonars_schedule_quad[] = {
   0, 4,  8, 12, Sonars_Controller::GROUP_END,
   1, 5,  9, 13, Sonars_Controller::GROUP_END,
   2, 6, 10, 14, Sonars_Controller::GROUP_END,
@@ -223,7 +225,8 @@ UByte sonars_schedule[] = {
   Sonars_Controller::SCHEDULE_END,
 };
 
-UByte xsonars_schedule[] = {
+// 1 sonar in each scan group
+UByte sonars_schedule_single[] = {
   0, Sonars_Controller::GROUP_END,
   1, Sonars_Controller::GROUP_END,
   2, Sonars_Controller::GROUP_END,
@@ -259,8 +262,10 @@ Bridge bridge(&avr_uart0, &avr_uart1, &avr_uart0, &bus_slave,
  (Bus_Motor_Encoder *)&right_motor_encoder,
  (RAB_Sonar *)&loki_rab_sonar);
 
+// setup a controller and tell it the schedule it should use.
+// A schedule can have one or more sonars firing at any given time
 Sonars_Controller sonars_controller((UART *)debug_uart,
- sonars, sonar_queues, sonars_schedule);
+ sonars, sonar_queues, sonars_schedule_single);
 
 void leds_byte_write(char byte) {
   //digitalWrite(led0_pin, (byte & 1) ? LOW : HIGH);
