@@ -582,7 +582,7 @@ Loki_Motor_Encoder::Loki_Motor_Encoder(UByte input1_pin, UByte input2_pin,
 }
 
 void Loki_Motor_Encoder::pwm_set(Byte pwm) {
-  static const UShort friction_pwm = 1;    // Was 5 for yellow motors
+  static const UShort friction_pwm = 0;    // Was 5 for yellow motors
   UByte input1 = LOW;
   UByte input2 = LOW;
   UShort enable_pwm = 0;
