@@ -61,16 +61,28 @@ Do the following: (The first setup step is a turse set of reminders and not deta
    Properly configure ROS_MASTER_URI on the RaspPi as well as laptop to run 'rviz'.
    (This is a bit involved and we may add to this section later as needed)
 
-2  Hit the reset switch on the Loki near the green leds and then
+2. Hit the reset switch on the Loki near the green leds and then
    Run `roslaunch ros_arduino_python arduino.launch` on RasPi2
    You must not see any errors that stop the launch.
 
-3. For joystick control you need either the PS2 or XBox usb dongle pluged into the RasPi2.
-   Run 'roslaunch joy_input joystick.launch' on the RasPi2 if you want joystick control.
-   Pair your controller (XBox: Tiny reset in back then press chrome X key, PS2: 'Hold select key')
-   Hold the left hand button with index finger then left joystick will control Robot movements
 
-4. Run 'roslaunch fiducial_slam fiducial_raspi_3d.launch` on RasPi2
+3. For joystick control you need either the PS2 or XBox usb dongle pluged 
+   into the RasPi2.   You will have to plug it into USB then pair as follows:
+
+   XBox:  Press tiny reset button in back if you have not paired before.
+   If you have paired before press big chrome X button.
+
+   PS3: Set the slide switch on the USB dongle to Xinput to emulate XBox protocol.
+   Plug it in and on hand controller press the 'P3' button in center down till
+   only one of the 4 leds is on then you are paired and dongle led is solid red.
+
+   After pairing run  'roslaunch joy_input joystick.launch' 
+
+   Once joystick node is running hold down the button on front of left side of controller
+   while then using left joystick to control velocity.   You should get /cmd_vel
+   commands to the robot but have to keep moving joystick or the bot times out in 2 sec.
+
+4. For Fiducial maps:   Run 'roslaunch fiducial_slam fiducial_raspi_3d.launch` on RasPi2
    (mjstn - Is this True????:   Run `roslaunch fiducial_lib loki.launch` on laptop)
    (For details refer to:  https://github.com/UbiquityRobotics/fiducials README.md)
 
