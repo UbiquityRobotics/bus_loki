@@ -165,25 +165,26 @@ Sonar_Queue *sonar_queues[] = {
 
 // Create one *Sonar* object for each physical HC-SRO4 sonar on Loki.
 // This table is for the Loki Rev. C board:
-Sonar sonar1( &PING, 2, &k_sonar_queue, 23, 7);
-Sonar sonar2( &PINA, 0, &k_sonar_queue, 21, 6);
-Sonar sonar3( &PINA, 1, &k_sonar_queue, 21, 5);
-Sonar sonar4( &PINA, 2, &k_sonar_queue, 20, 4);
-Sonar sonar5( &PINA, 3, &k_sonar_queue, 19, 3);
-Sonar sonar6( &PINA, 4, &k_sonar_queue, 18, 2);
-Sonar sonar7( &PINA, 5, &k_sonar_queue, 17, 1);
-Sonar sonar8( &PINA, 6, &k_sonar_queue, 16, 0);
-Sonar sonar9( &PINA, 7, &j_sonar_queue, 15, 6);
-Sonar sonar10(&PINJ, 7, &j_sonar_queue, 14, 5);
-Sonar sonar11(&PINL, 3, &j_sonar_queue, 13, 4);
-Sonar sonar12(&PINL, 2, &j_sonar_queue, 12, 3);
-Sonar sonar13(&PINL, 1, &j_sonar_queue, 11, 1);
-Sonar sonar14(&PINL, 0, &j_sonar_queue, 11, 1);
-Sonar sonar15(&PING, 4, &j_sonar_queue, 10, 2);
-Sonar sonar16(&PING, 3, &j_sonar_queue, 10, 2);
+Sonar sonar0( &PING, 2, &k_sonar_queue, 23, 7);
+Sonar sonar1( &PINA, 0, &k_sonar_queue, 22, 6);
+Sonar sonar2( &PINA, 1, &k_sonar_queue, 21, 5);
+Sonar sonar3( &PINA, 2, &k_sonar_queue, 20, 4);
+Sonar sonar4( &PINA, 3, &k_sonar_queue, 19, 3);
+Sonar sonar5( &PINA, 4, &k_sonar_queue, 18, 2);
+Sonar sonar6( &PINA, 5, &k_sonar_queue, 17, 1);
+Sonar sonar7( &PINA, 6, &k_sonar_queue, 16, 0);
+Sonar sonar8( &PINA, 7, &j_sonar_queue, 15, 6);
+Sonar sonar9( &PINJ, 7, &j_sonar_queue, 14, 5);
+Sonar sonar10(&PINL, 3, &j_sonar_queue, 13, 4);
+Sonar sonar11(&PINL, 2, &j_sonar_queue, 12, 3);
+Sonar sonar12(&PINL, 1, &j_sonar_queue, 10, 1);
+Sonar sonar13(&PINL, 0, &j_sonar_queue, 10, 1);
+Sonar sonar14(&PING, 4, &j_sonar_queue, 11, 2);
+Sonar sonar15(&PING, 3, &j_sonar_queue, 11, 2);
 
 // Create a null-terminated list of the *Sonar* objects:
 Sonar *sonars[] = {
+  &sonar0,
   &sonar1,
   &sonar2,
   &sonar3,
@@ -199,11 +200,10 @@ Sonar *sonars[] = {
   &sonar13,
   &sonar14,
   &sonar15,
-  &sonar16,
   (Sonar *)0,	// Put a null on the end to terminate sonar list:
 };
 
-// 2 sonars in each scan group
+// 2 sonars in each scan group:
 UByte sonars_schedule_dual[] = {
    0,  4, Sonars_Controller::GROUP_END,
    8, 12, Sonars_Controller::GROUP_END,
@@ -212,36 +212,47 @@ UByte sonars_schedule_dual[] = {
    2,  6, Sonars_Controller::GROUP_END,
   10, 14, Sonars_Controller::GROUP_END,
    3,  7, Sonars_Controller::GROUP_END,
-  15,     Sonars_Controller::GROUP_END,
+      15, Sonars_Controller::GROUP_END,
   Sonars_Controller::SCHEDULE_END,
 };
 
-// 4 sonars in each scan group
+// 4 sonars in each scan group:
+// Alternate 12/13 with 14/15 since they share an echo pin:
 UByte sonars_schedule_quad[] = {
-  0, 4,  8, 12, Sonars_Controller::GROUP_END,
-  1, 5,  9, 13, Sonars_Controller::GROUP_END,
-  2, 6, 10, 14, Sonars_Controller::GROUP_END,
-  3, 7, 15,     Sonars_Controller::GROUP_END,
+  0, 4,  8, 12, Sonars_Controller::GROUP_END,	// 12 1st
+  2, 6, 10, 14, Sonars_Controller::GROUP_END,	// 14 2nd
+  1, 5,  9, 13, Sonars_Controller::GROUP_END,	// 13 3rd
+  3, 7,     15, Sonars_Controller::GROUP_END,	// 15 4th
   Sonars_Controller::SCHEDULE_END,
 };
 
-// 1 sonar in each scan group
+// 1 sonar in each scan group:
 UByte sonars_schedule_single[] = {
   0, Sonars_Controller::GROUP_END,
-  1, Sonars_Controller::GROUP_END,
-  2, Sonars_Controller::GROUP_END,
-  3, Sonars_Controller::GROUP_END,
   4, Sonars_Controller::GROUP_END,
-  5, Sonars_Controller::GROUP_END,
-  6, Sonars_Controller::GROUP_END,
-  7, Sonars_Controller::GROUP_END,
   8, Sonars_Controller::GROUP_END,
-  9, Sonars_Controller::GROUP_END,
-  10, Sonars_Controller::GROUP_END,
   12, Sonars_Controller::GROUP_END,
+
+  1, Sonars_Controller::GROUP_END,
+  5, Sonars_Controller::GROUP_END,
+  9, Sonars_Controller::GROUP_END,
   13, Sonars_Controller::GROUP_END,
+
+  2, Sonars_Controller::GROUP_END,
+  6, Sonars_Controller::GROUP_END,
+  10, Sonars_Controller::GROUP_END,
   14, Sonars_Controller::GROUP_END,
+
+  3, Sonars_Controller::GROUP_END,
+  7, Sonars_Controller::GROUP_END,
   15, Sonars_Controller::GROUP_END,
+
+  Sonars_Controller::SCHEDULE_END,
+};
+
+// 1 sonar only:
+UByte sonars_schedule_one_only[] = {
+  0, Sonars_Controller::GROUP_END,
   Sonars_Controller::SCHEDULE_END,
 };
 
@@ -265,7 +276,7 @@ Bridge bridge(&avr_uart0, &avr_uart1, &avr_uart0, &bus_slave,
 // setup a controller and tell it the schedule it should use.
 // A schedule can have one or more sonars firing at any given time
 Sonars_Controller sonars_controller((UART *)debug_uart,
- sonars, sonar_queues, sonars_schedule_single);
+ sonars, sonar_queues, sonars_schedule_dual);
 
 void leds_byte_write(char byte) {
   //digitalWrite(led0_pin, (byte & 1) ? LOW : HIGH);
@@ -317,8 +328,8 @@ Loki_RAB_Sonar::Loki_RAB_Sonar(UART *debug_uart) : RAB_Sonar(debug_uart) {
 
 UShort Loki_RAB_Sonar::ping_get(UByte sonar_index) {
   // FIXME: Do this in fixed point!!!
-  debug_uart_->integer_print(sonar_index);
-  debug_uart_->string_print((Text)":");
+  //debug_uart_->integer_print(sonar_index);
+  //debug_uart_->string_print((Text)":");
   UShort distance = sonars_controller.mm_distance_get(sonar_index);
   // Round to closes centimeter:
   return distance;
