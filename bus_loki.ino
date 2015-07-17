@@ -25,16 +25,18 @@ extern float usonar_inlineReadMeters(int sonarUnit);
 
 class Loki_Motor_Encoder : Bus_Motor_Encoder {
  public:
-  Loki_Motor_Encoder(UByte input1_pin, UByte input2_pin,
-   UByte enable_pin, Integer *encoder_pointer);
+  Loki_Motor_Encoder(UByte input1_pin, UByte input2_pin, Logical pwm_invert,
+   UByte enable_pin, Integer *encoder_pointer, Logical encoder_invert);
   Integer encoder_get();
   void encoder_set(Integer encoder);
   void pwm_set(Byte pwm);
  private:
-  UByte _input1_pin;
-  UByte _input2_pin;
-  UByte _enable_pin;
-  Integer *_encoder_pointer;
+  Logical encoder_invert_;
+  Logical pwm_invert_;
+  UByte input1_pin_;
+  UByte input2_pin_;
+  UByte enable_pin_;
+  Integer *encoder_pointer_;
 };
 
 class Loki_RAB_Sonar : RAB_Sonar {
@@ -118,12 +120,12 @@ static const int led5_pin = 35;
 static const int led6_pin = 36;
 static const int led7_pin = 37;
 static const int miso_pin = 50;
-static const int motor1_input1_pin = 43;
-static const int motor1_input2_pin = 44;
-static const int motor1_enable_pin = 45;
-static const int motor2_input1_pin = 5;
-static const int motor2_input2_pin = 3;
-static const int motor2_enable_pin = 2;
+static const int motor1input1_pin_ = 43;
+static const int motor1input2_pin_ = 44;
+static const int motor1enable_pin_ = 45;
+static const int motor2input1_pin_ = 5;
+static const int motor2input2_pin_ = 3;
+static const int motor2enable_pin_ = 2;
 
 
 // Define the UART's:
@@ -262,10 +264,10 @@ Integer encoder2 = 0;
 
 Bus_Slave bus_slave((UART *)bus_uart, (UART *)host_uart);
 
-Loki_Motor_Encoder left_motor_encoder(motor1_input1_pin, motor1_input2_pin,
- motor1_enable_pin, &encoder1);
-Loki_Motor_Encoder right_motor_encoder(motor2_input1_pin, motor2_input2_pin,
- motor2_enable_pin, &encoder2);
+Loki_Motor_Encoder left_motor_encoder(motor1input1_pin_, motor1input2_pin_,
+ motor1enable_pin_, (Logical)0, &encoder1, (Logical)0);
+Loki_Motor_Encoder right_motor_encoder(motor2input1_pin_, motor2input2_pin_,
+ motor2enable_pin_, (Logical)1, &encoder2, (Logical)1);
 Loki_RAB_Sonar loki_rab_sonar((UART *)debug_uart);
 
 Bridge bridge(&avr_uart0, &avr_uart1, &avr_uart0, &bus_slave,
@@ -368,12 +370,12 @@ void setup() {
   pinMode(led5_pin, OUTPUT);
   pinMode(led6_pin, OUTPUT);
   pinMode(led7_pin, OUTPUT);
-  pinMode(motor1_input1_pin, OUTPUT);
-  pinMode(motor1_input2_pin, OUTPUT);
-  pinMode(motor1_enable_pin, OUTPUT);
-  pinMode(motor2_input1_pin, OUTPUT);
-  pinMode(motor2_input2_pin, OUTPUT);
-  pinMode(motor2_enable_pin, OUTPUT);
+  pinMode(motor1input1_pin_, OUTPUT);
+  pinMode(motor1input2_pin_, OUTPUT);
+  pinMode(motor1enable_pin_, OUTPUT);
+  pinMode(motor2input1_pin_, OUTPUT);
+  pinMode(motor2input2_pin_, OUTPUT);
+  pinMode(motor2enable_pin_, OUTPUT);
 
   leds_byte_write(0);
   host_uart->begin(16000000L, 115200L, (Character *)"8N1");
@@ -457,33 +459,33 @@ void loop() {
     case BUS_LOKI_PROGRAM_MOTOR: {
       for (int index = 0; index < 8; index++) {
 	if ((index & 2) == 0) {
-          digitalWrite(motor1_input1_pin, LOW);
-          digitalWrite(motor2_input1_pin, LOW);
+          digitalWrite(motor1input1_pin_, LOW);
+          digitalWrite(motor2input1_pin_, LOW);
 	  digitalWrite(led1_pin, HIGH);
         } else {
-          digitalWrite(motor1_input1_pin, HIGH);
-          digitalWrite(motor2_input1_pin, HIGH);
+          digitalWrite(motor1input1_pin_, HIGH);
+          digitalWrite(motor2input1_pin_, HIGH);
 	  digitalWrite(led1_pin, LOW);
         }
 
 	if ((index & 4) == 0) {
-          digitalWrite(motor1_input2_pin, LOW);
-          digitalWrite(motor2_input2_pin, LOW);
+          digitalWrite(motor1input2_pin_, LOW);
+          digitalWrite(motor2input2_pin_, LOW);
 	  digitalWrite(led2_pin, HIGH);
         } else {
-          digitalWrite(motor1_input2_pin, HIGH);
-          digitalWrite(motor2_input2_pin, HIGH);
+          digitalWrite(motor1input2_pin_, HIGH);
+          digitalWrite(motor2input2_pin_, HIGH);
 	  digitalWrite(led2_pin, LOW);
         }
 
 	if ((index & 1) == 0) {
 	  digitalWrite(led0_pin, HIGH);
-          analogWrite(motor1_enable_pin, 0);
-          analogWrite(motor2_enable_pin, 0);
+          analogWrite(motor1enable_pin_, 0);
+          analogWrite(motor2enable_pin_, 0);
         } else {
 	  digitalWrite(led0_pin, LOW);
-          analogWrite(motor1_enable_pin, 255);
-          analogWrite(motor2_enable_pin, 255);
+          analogWrite(motor1enable_pin_, 255);
+          analogWrite(motor2enable_pin_, 255);
         }
         delay(2000);
       }
@@ -584,12 +586,15 @@ void loop() {
 
 // *Loki_Motor_Encoder* classes:
 
-Loki_Motor_Encoder::Loki_Motor_Encoder(UByte input1_pin, UByte input2_pin,
- UByte enable_pin, Integer *encoder_pointer) {
-  _input1_pin = input1_pin;
-  _input2_pin = input2_pin;
-  _enable_pin = enable_pin;
-  _encoder_pointer = encoder_pointer;
+Loki_Motor_Encoder::Loki_Motor_Encoder(
+ UByte input1_pin, UByte input2_pin, UByte enable_pin, Logical pwm_invert,
+ Integer *encoder_pointer, Logical encoder_invert) {
+  input1_pin_ = input1_pin;
+  input2_pin_ = input2_pin;
+  enable_pin_ = enable_pin;
+  pwm_invert_ = pwm_invert;
+  encoder_pointer_ = encoder_pointer;
+  encoder_invert_ = encoder_invert;
 }
 
 void Loki_Motor_Encoder::pwm_set(Byte pwm) {
@@ -597,6 +602,11 @@ void Loki_Motor_Encoder::pwm_set(Byte pwm) {
   UByte input1 = LOW;
   UByte input2 = LOW;
   UShort enable_pwm = 0;
+
+  // Invert the pwm signal here:
+  if (pwm_invert_) {
+    pwm = -pwm;
+  }
 
   // We convert the signed 8-bit value for PWM range of 0-255
   // and setup the motor direction bits also from sign of input value
@@ -612,18 +622,23 @@ void Loki_Motor_Encoder::pwm_set(Byte pwm) {
   }
 
   // Set the direction pins and pulse the output:
-  digitalWrite(_input1_pin, input1);
-  digitalWrite(_input2_pin, input2);
-  analogWrite(_enable_pin, (UByte)enable_pwm);
+  digitalWrite(input1_pin_, input1);
+  digitalWrite(input2_pin_, input2);
+  analogWrite(enable_pin_, (UByte)enable_pwm);
 }
 
 Integer Loki_Motor_Encoder::encoder_get() {
-  // Do something here:
-  return *_encoder_pointer;
+  Integer encoder_value = *encoder_pointer_;
+  if (encoder_invert_) {
+    encoder_value = -encoder_value;
+  }
+  return encoder_value;
 }
 
-void Loki_Motor_Encoder::encoder_set(Integer encoder) {
-  // Do something here:
-  *_encoder_pointer = encoder;
+void Loki_Motor_Encoder::encoder_set(Integer encoder_value) {
+  if (encoder_invert_) {
+    encoder_value = -encoder_value;
+  }
+  *encoder_pointer_ = encoder_value;
 }
 
