@@ -275,10 +275,11 @@ Bridge bridge(&avr_uart0, &avr_uart1, &avr_uart0, &bus_slave,
  (Bus_Motor_Encoder *)&right_motor_encoder,
  (RAB_Sonar *)&loki_rab_sonar);
 
-// setup a controller and tell it the schedule it should use.
+// setup a sonar controller and tell it the schedule it should use.
 // A schedule can have one or more sonars firing at any given time
-Sonars_Controller sonars_controller((UART *)debug_uart,
- sonars, sonar_queues, sonars_schedule_dual);
+// depending on how many sonars are in the current group (or row if you will)
+Sonars_Controller sonars_controller((UART *)debug_uart, 
+  sonars, sonar_queues, sonars_schedule_dual);
 
 void leds_byte_write(char byte) {
   //digitalWrite(led0_pin, (byte & 1) ? LOW : HIGH);
@@ -575,6 +576,7 @@ void loop() {
 	encoder1_state = (unsigned char)(state_transition & 0x7);
       }
 
+      // Do next pass of sonar distance scan state machine logic
       sonars_controller.poll();
       
       bridge.loop(TEST);
