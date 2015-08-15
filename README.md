@@ -495,3 +495,95 @@ That should do it.
     </TR>
   </Table>
 </BlockQuote>
+
+## Loki Bring-Up
+
+### Base + ROS Arduino Bridge Integration
+
+1. Make sure that Loki wheels turn through RAB (ROS Arduino Bridge)
+   interface. [Done]
+
+2. Make sure that Loki encoders work through RAB. [Done]
+
+3. Tune Loki PID loops so that Loki can be commanded to move at
+   a set speed. [Done]
+
+4. Create a robot launch file that brings up remote control through
+   ROS and a PS3/XBox hand controller. [Mostly Done]
+
+### URDF Model
+
+1. Develop a Loki URDF model that specifies the robot dimensions and
+    wheel placement. Origin at robot turn point. [Pending]
+
+2. Develop a Loki URDF model that specifies the Sonar positions and
+   angles. [Done]
+
+3. Develop a Loki URDF model that specifies the RasPi camera location.
+   [Pending]
+
+4. Develop a Loki URDF model that specifies the the MeArm.
+   [Pending]
+
+### Sonars
+
+1. Create robot/rviz launch files that show the sonars working. [Done?]
+
+2. Create robot/rviz launch files that bring up local cost map using
+   sonars [Done?]
+
+### RasPi Camera
+
+1. Ensure that we can read the RasPi camera. [Done]
+
+2. Calibrate the RasPi camera. [Done]
+
+3. Talk with Maxed-Out team about how they talked to RasPi camera [Pending]
+
+### Fiducials
+
+1. Verify that we can use the same camera calibration across multiple
+   RasPi cameras [Done?]
+
+2. Integrate RasPi camera with Fiducial Map generator. [Done]
+
+3. Create robot/rviz launch files for creating a Map using RasPi Camera
+   and map generator code. [Done]
+
+4. Create robot/rviz launch model that shows current robot location
+   and pose in rviz.  It must update properly when robot is moved
+   by hand. [Pending]
+
+5. Create a test to characterize rolling shutter motion blur as
+   a function of speed. [Pending]
+
+6. Create a work-around to mitigate motion blur issue. [Pending]
+
+### Move_Base Node
+
+1. Create robot/rviz launch files to bring up move_base node
+   with empty obstacle map (i.e. no sonar, just encoders.)  Make
+   sure that clicking in rviz cause the robot to move to the
+   desired location. [In Progress]
+
+2. Create robot/rviz launch files to integrate sonars with
+   move_base. [Pending]
+
+3. Bring up local cost map in RViz. [Mostly done; some issues left]
+
+4. Integrate Loki base outline and inflation characteristics into
+   move_base [Pending]
+
+5. Integrate sonars based local cost map together with move_base.
+   The goal here is to go from point to point avoiding obsticles.
+   [Attempted, not much success yet.]
+
+6. Integerate encoders/sonars/fiducials to move_base. [Pending]
+
+## Arm
+
+1. Bring up servos. [Pending]
+
+2. Bring up move_it node. [Pending]
+
+
