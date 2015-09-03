@@ -46,6 +46,7 @@ class Loki_RAB_Sonar : RAB_Sonar {
   virtual UShort debug_flags_get();
   virtual void debug_flags_set(UShort debug_flags);
   virtual UByte sonars_count_get();
+  virtual void queue_poll(UART *uart, UInteger time_base, UByte id_offset);
  private:
   Short debug_flags_;
 };
@@ -348,6 +349,11 @@ void Loki_RAB_Sonar::debug_flags_set(UShort debug_flags) {
 
 UByte Loki_RAB_Sonar::sonars_count_get() {
   return 16;
+}
+
+void Loki_RAB_Sonar::queue_poll(UART *uart,
+ UInteger time_base, UByte id_offset) {
+  sonars_controller.queue_poll(uart, time_base, id_offset);
 }
 
 // Setup instance of class for Loki Ultrasonic Sensor support
