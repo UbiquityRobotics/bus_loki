@@ -47,6 +47,8 @@ class Loki_RAB_Sonar : RAB_Sonar {
   virtual void debug_flags_set(UShort debug_flags);
   virtual UByte sonars_count_get();
   virtual void queue_poll(UART *uart, UInteger time_base, UByte id_offset);
+  virtual void configure(UByte sonar_index,
+   UByte sonar_class, Byte left_id, Byte right_id);
  private:
   Short debug_flags_;
 };
@@ -328,6 +330,12 @@ ISR(PCINT2_vect) {
 
 Loki_RAB_Sonar::Loki_RAB_Sonar(UART *debug_uart) : RAB_Sonar(debug_uart) {
   debug_flags_ = 0;
+}
+
+void Loki_RAB_Sonar::configure(UByte sonar_index,
+ UByte sonar_class, Byte left_id, Byte right_id) {
+  sonars_controller.sonar_configure(sonar_index,
+   sonar_class, left_id, right_id);
 }
 
 UShort Loki_RAB_Sonar::ping_get(UByte sonar_index) {
