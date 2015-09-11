@@ -282,7 +282,7 @@ Bridge bridge(&avr_uart0, &avr_uart1, &avr_uart0, &bus_slave,
 // A schedule can have one or more sonars firing at any given time
 // depending on how many sonars are in the current group (or row if you will)
 Sonars_Controller sonars_controller((UART *)debug_uart, 
-  sonars, sonar_queues, sonars_schedule_dual);
+  sonars, sonar_queues, sonars_schedule_single);
 
 void leds_byte_write(char byte) {
   //digitalWrite(led0_pin, (byte & 1) ? LOW : HIGH);
