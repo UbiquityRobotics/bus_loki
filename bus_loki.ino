@@ -49,7 +49,7 @@ class Loki_RAB_Sonar : RAB_Sonar {
   virtual UByte sonars_count_get();
   virtual void queue_poll(UART *uart, UInteger time_base, UByte id_offset);
   virtual void configure(UByte sonar_index,
-   UByte sonar_class, Byte left_id, Byte right_id);
+   Sonar_Class sonar_class, Byte left_id, Byte right_id);
  private:
   Short debug_flags_;
 };
@@ -169,24 +169,22 @@ Sonar_Queue *sonar_queues[] = {
   (Sonar_Queue *)0,
 };
 
-// Create one *Sonar* object for each physical HC-SRO4 sonar on Loki.
-// This table is for the Loki Rev. C board:
-Sonar sonar0( &PING, 2, &k_sonar_queue, 23, 7);
-Sonar sonar1( &PINA, 0, &k_sonar_queue, 22, 6);
-Sonar sonar2( &PINA, 1, &k_sonar_queue, 21, 5);
-Sonar sonar3( &PINA, 2, &k_sonar_queue, 20, 4);
-Sonar sonar4( &PINA, 3, &k_sonar_queue, 19, 3);
-Sonar sonar5( &PINA, 4, &k_sonar_queue, 18, 2);
-Sonar sonar6( &PINA, 5, &k_sonar_queue, 17, 1);
-Sonar sonar7( &PINA, 6, &k_sonar_queue, 16, 0);
-Sonar sonar8( &PINA, 7, &j_sonar_queue, 15, 6);
-Sonar sonar9( &PINJ, 7, &j_sonar_queue, 14, 5);
-Sonar sonar10(&PINL, 3, &j_sonar_queue, 13, 4);
-Sonar sonar11(&PINL, 2, &j_sonar_queue, 12, 3);
-Sonar sonar12(&PINL, 1, &j_sonar_queue, 10, 1);
-Sonar sonar13(&PINL, 0, &j_sonar_queue, 10, 1);
-Sonar sonar14(&PING, 4, &j_sonar_queue, 11, 2);
-Sonar sonar15(&PING, 3, &j_sonar_queue, 11, 2);
+Sonar sonar0(  0, &PING, 2, &k_sonar_queue, 23, 7,   class_off, -1,  -1);
+Sonar sonar1(  1, &PINA, 0, &k_sonar_queue, 22, 6,  class_side, -1,   2);
+Sonar sonar2(  2, &PINA, 1, &k_sonar_queue, 21, 5, class_front,  1,   3);
+Sonar sonar3(  3, &PINA, 2, &k_sonar_queue, 20, 4, class_front,  2,   4);
+Sonar sonar4(  4, &PINA, 3, &k_sonar_queue, 19, 3, class_front,  3,   5);
+Sonar sonar5(  5, &PINA, 4, &k_sonar_queue, 18, 2, class_front,  4,   6);
+Sonar sonar6(  6, &PINA, 5, &k_sonar_queue, 17, 1, class_front,  5,   7);
+Sonar sonar7(  7, &PINA, 6, &k_sonar_queue, 16, 0,  class_side,  6,   8);
+Sonar sonar8(  8, &PINA, 7, &j_sonar_queue, 15, 6,  class_side,  7,   9);
+Sonar sonar9(  9, &PINJ, 7, &j_sonar_queue, 14, 5,  class_side,  8,  10);
+Sonar sonar10(10, &PINL, 3, &j_sonar_queue, 13, 4,  class_back,  9,  -1);
+Sonar sonar11(11, &PINL, 2, &j_sonar_queue, 12, 3,  class_off, -1,  -1);
+Sonar sonar12(12, &PINL, 1, &j_sonar_queue, 10, 1,  class_back, -1,  13);
+Sonar sonar13(13, &PINL, 0, &j_sonar_queue, 10, 1,  class_back, 12,  14);
+Sonar sonar14(14, &PING, 4, &j_sonar_queue, 11, 2,  class_back, 13,  15);
+Sonar sonar15(15, &PING, 3, &j_sonar_queue, 11, 2,  class_side, 14,  -1);
 
 // Create a null-terminated list of the *Sonar* objects:
 Sonar *sonars[] = {
@@ -334,7 +332,7 @@ Loki_RAB_Sonar::Loki_RAB_Sonar(UART *debug_uart) : RAB_Sonar(debug_uart) {
 }
 
 void Loki_RAB_Sonar::configure(UByte sonar_index,
- UByte sonar_class, Byte left_id, Byte right_id) {
+ Sonar_Class sonar_class, Byte left_id, Byte right_id) {
   sonars_controller.sonar_configure(sonar_index,
    sonar_class, left_id, right_id);
 }
