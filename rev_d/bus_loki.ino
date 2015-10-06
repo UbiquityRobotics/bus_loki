@@ -124,19 +124,12 @@ static const int led5_pin = 35;
 static const int led6_pin = 36;
 static const int led7_pin = 37;
 static const int miso_pin = 50;
-static const int motor1input1_pin_ = 40;     //pin52=stdby=AR40
-static const int motor1input2_pin_ = 45;     //pin39=servo5=AR45=N35-pin3
-static const int motor1enable_pin_ = 44;     //pin40=servo6=AR44=N36-pin3
-//static const int motor1input1_pin_ = 43;
-//static const int motor1input2_pin_ = 44;
-//static const int motor1enable_pin_ = 45;
-//static const int motor2input1_pin_ = 5;
-//static const int motor2input2_pin_ = 3;
-//static const int motor2enable_pin_ = 2;
+static const int motor1enable_pin_ = 45;     //pin39=servo5=D45=N35-pin3=HB1
+static const int motor1input1_pin_ = 40;     //pin52=stdby =D40=TP20    =HB2
+static const int motor1input2_pin_ = 44;     //pin40=servo6=D44=N36-pin3=HB7
 static const int motor2enable_pin_ = 5;
 static const int motor2input1_pin_ = 2;
 static const int motor2input2_pin_ = 3;
-
 
 // Define the UART's:
 NULL_UART null_uart;
@@ -215,7 +208,7 @@ Sonar *sonars[] = {
 
 // 2 sonars in each scan group:
 UByte sonars_schedule_dual[] = {
-   0,  4, Sonars_Controller::GROUP_END,
+    0,  4, Sonars_Controller::GROUP_END,
    8, 12, Sonars_Controller::GROUP_END,
    1,  5, Sonars_Controller::GROUP_END,
    9, 13, Sonars_Controller::GROUP_END,
