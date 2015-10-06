@@ -124,12 +124,18 @@ static const int led5_pin = 35;
 static const int led6_pin = 36;
 static const int led7_pin = 37;
 static const int miso_pin = 50;
-static const int motor1input1_pin_ = 43;
-static const int motor1input2_pin_ = 44;
-static const int motor1enable_pin_ = 45;
-static const int motor2input1_pin_ = 5;
+static const int motor1input1_pin_ = 40;     //pin52=stdby=AR40
+static const int motor1input2_pin_ = 45;     //pin39=servo5=AR45=N35-pin3
+static const int motor1enable_pin_ = 44;     //pin40=servo6=AR44=N36-pin3
+//static const int motor1input1_pin_ = 43;
+//static const int motor1input2_pin_ = 44;
+//static const int motor1enable_pin_ = 45;
+//static const int motor2input1_pin_ = 5;
+//static const int motor2input2_pin_ = 3;
+//static const int motor2enable_pin_ = 2;
+static const int motor2enable_pin_ = 5;
+static const int motor2input1_pin_ = 2;
 static const int motor2input2_pin_ = 3;
-static const int motor2enable_pin_ = 2;
 
 
 // Define the UART's:
@@ -180,11 +186,11 @@ Sonar sonar7(  7, &PINA, 6, &k_sonar_queue, 16, 0,  class_side,  6,   8);
 Sonar sonar8(  8, &PINA, 7, &j_sonar_queue, 15, 6,  class_side,  7,   9);
 Sonar sonar9(  9, &PINJ, 7, &j_sonar_queue, 14, 5,  class_side,  8,  10);
 Sonar sonar10(10, &PINL, 3, &j_sonar_queue, 13, 4,  class_back,  9,  -1);
-Sonar sonar11(11, &PINL, 2, &j_sonar_queue, 12, 3,  class_off, -1,  -1);
-Sonar sonar12(12, &PINL, 1, &j_sonar_queue, 10, 1,  class_back, -1,  13);
-Sonar sonar13(13, &PINL, 0, &j_sonar_queue, 10, 1,  class_back, 12,  14);
-Sonar sonar14(14, &PING, 4, &j_sonar_queue, 11, 2,  class_back, 13,  15);
-Sonar sonar15(15, &PING, 3, &j_sonar_queue, 11, 2,  class_side, 14,  -1);
+Sonar sonar11(11, &PINL, 2, &j_sonar_queue, 12, 3,  class_off,  -1,  -1);
+Sonar sonar12(12, &PINL, 1, &j_sonar_queue, 11, 2,  class_back, -1,  13);
+Sonar sonar13(13, &PINL, 0, &j_sonar_queue, 11, 2,  class_back, 12,  14);
+Sonar sonar14(14, &PING, 4, &j_sonar_queue, 10, 1,  class_back, 13,  15);
+Sonar sonar15(15, &PING, 3, &j_sonar_queue, 10, 1,  class_side, 14,  -1);
 
 // Create a null-terminated list of the *Sonar* objects:
 Sonar *sonars[] = {
@@ -249,6 +255,7 @@ UByte sonars_schedule_single[] = {
 
   3, Sonars_Controller::GROUP_END,
   7, Sonars_Controller::GROUP_END,
+  11, Sonars_Controller::GROUP_END,
   15, Sonars_Controller::GROUP_END,
 
   Sonars_Controller::SCHEDULE_END,
