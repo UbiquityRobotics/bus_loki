@@ -111,10 +111,10 @@ static Byte state_transition_table[32] = {
 };
 
 // Define pin numbers:
-static const int encoder_r1_pin = 10;		// IC Pin 23
-static const int encoder_r2_pin = 11;		// IC Pin 24
-static const int encoder_l1_pin = 12;		// IC Pin 25
-static const int encoder_l2_pin = 13;		// IC Pin 26
+static const int encoder_r1_pin = 10;		// IC Pin 23 = PB4
+static const int encoder_r2_pin = 11;		// IC Pin 24 = PB5
+static const int encoder_l1_pin = 12;		// IC Pin 25 = PB6
+static const int encoder_l2_pin = 13;		// IC Pin 26 = PB7
 static const int led0_pin = 30;
 static const int led1_pin = 31;
 static const int led2_pin = 32;
@@ -302,13 +302,16 @@ void leds_byte_write(char byte) {
 // attached to PCINT7/6/5/4, so these are the bits we want
 // to capture.  This routine just stuffs the encoder bits
 // into a buffer:
+static UByte encoder_counter = 0;
 ISR(PCINT0_vect) {
   // Stuff the port C input bits into *buffer* and advance *buffer_in*:
   UByte bits = PINB;
   encoder_buffer[encoder_buffer_in] = bits;
   encoder_buffer_in = (encoder_buffer_in + 1) & BUFFER_MASK;
+
   // For now, copy *PINB* over to the LEDS:
-  PORTC = PINB;
+  encoder_counter += 1;
+  PORTC = PINB & 0xf0 | encoder_counter & 0xf;
   //leds_byte_write(bits);
   //leds_byte_write(encoder_buffer_in);
   //host_uart->print("0123456789abcdef"[(bits >> 4) & 0xf]);
