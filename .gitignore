@@ -1,5 +1,11 @@
 *~
-build-mega2560
-bus_common
-bus_server
-bus_slave
+*.a
+*.d
+*.eep
+*.elf
+*.hex
+*.i
+*.o
+*.sizeok
+core
+userlibs
