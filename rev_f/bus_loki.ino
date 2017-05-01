@@ -6,6 +6,8 @@
 #include <Sonar.h>
 #include <RAB_Sonar.h>
 
+#define REV_F 1
+
 #define BUS_LOKI_PROGRAM_BLINK 0
 #define BUS_LOKI_PROGRAM_MOTOR 1
 #define BUS_LOKI_PROGRAM_ENCODERS_TO_LEDS 2
@@ -124,12 +126,19 @@ static const int led5_pin = 35;
 static const int led6_pin = 36;
 static const int led7_pin = 37;
 static const int miso_pin = 50;
-static const int motor1enable_pin_ = 45;     //pin39=servo5=D45=N35-pin3=HB1
-static const int motor1input1_pin_ = 40;     //pin52=stdby =D40=TP20    =HB2
-static const int motor1input2_pin_ = 44;     //pin40=servo6=D44=N36-pin3=HB7
+static const int motor1enable_pin_rev_d = 45;     //pin39=servo5=D45=N35-pin3=H-Bridge1
+static const int motor1input1_pin_rev_d = 40;     //pin52=stdby =D40=TP20    =H-Bridge2
+static const int motor1input2_pin_rev_d = 44;     //pin40=servo6=D44=N36-pin3=H-Bridge7
+static const int motor1enable_pin_rev_f = 1;      //pin1=D1
+static const int motor1input1_pin_rev_f = 43;     //pin42=D43
+static const int motor1input2_pin_rev_f = 42;     //pin42=D42
 static const int motor2enable_pin_ = 5;
 static const int motor2input1_pin_ = 2;
 static const int motor2input2_pin_ = 3;
+
+static int motor1enable_pin_ = motor1enable_pin_rev_d;
+static int motor1input1_pin_ = motor1input1_pin_rev_d;
+static int motor1input2_pin_ = motor1input2_pin_rev_d;
 
 // Define the UART's:
 NULL_UART null_uart;
@@ -391,6 +400,14 @@ void setup() {
   pinMode(led5_pin, OUTPUT);
   pinMode(led6_pin, OUTPUT);
   pinMode(led7_pin, OUTPUT);
+
+  // Rev. F has different pintouts for motor1:
+  #if REV_F
+    motor1input1_pin_ = motor1input1_pin_rev_f;
+    motor1input2_pin_ = motor1input2_pin_rev_f;
+    motor1enable_pin_ = motor1enable_pin_rev_f;
+  #endif // REVF
+
   pinMode(motor1input1_pin_, OUTPUT);
   pinMode(motor1input2_pin_, OUTPUT);
   pinMode(motor1enable_pin_, OUTPUT);
