@@ -217,6 +217,13 @@ AVRDUDE_PORT = com1    # programmer connected to serial device
 AVRDUDE_WRITE_FLASH = -U flash:w:$(TARGET).hex
 #AVRDUDE_WRITE_EEPROM = -U eeprom:w:$(TARGET).eep
 
+AVRDUDE_UNLOCK_BITS = 0x3F
+AVRDUDE_LOCK_BITS = 0x0F
+AVRDUDE_EXTENDED_FUSES = 0xFD
+AVRDUDE_HIGH_FUSES = 0xD8
+#AVRDUDE_HIGH_FUSES = 0xD9
+AVRDUDE_LOW_FUSES = 0xFF
+AVRDUDE_CONFIG = -C./avrdude.conf
 
 # Uncomment the following if you want avrdude's erase cycle counter.
 # Note that this counter needs to be initialized first using -Yn,
@@ -232,10 +239,11 @@ AVRDUDE_WRITE_FLASH = -U flash:w:$(TARGET).hex
 # to submit bug reports.
 #AVRDUDE_VERBOSE = -v -v
 
-AVRDUDE_FLAGS = -p $(MCU) -P $(AVRDUDE_PORT) -c $(AVRDUDE_PROGRAMMER)
+AVRDUDE_FLAGS = -p $(MCU) -P $(AVRDUDE_PORT) -c $(AVRDUDE_PROGRAMMER) $(AVRDUDE_CONFIG)
 AVRDUDE_FLAGS += $(AVRDUDE_NO_VERIFY)
 AVRDUDE_FLAGS += $(AVRDUDE_VERBOSE)
 AVRDUDE_FLAGS += $(AVRDUDE_ERASE_COUNTER)
+#AVRDUDE_FLAGS += -v -v -v -v
 
 
 
@@ -279,6 +287,7 @@ OBJDUMP = avr-objdump
 SIZE = avr-size
 NM = avr-nm
 AVRDUDE = avrdude
+AVRDUDE = /home/wayne/download/avrdude/trunk/avrdude/avrdude
 REMOVE = rm -f
 COPY = cp
 WINSHELL = cmd
@@ -325,12 +334,12 @@ ALL_ASFLAGS = -mmcu=$(MCU) -I. -x assembler-with-cpp $(ASFLAGS)
 
 ############################################################
 #	May 25,	2010	<MLS> Adding 1280 support
-mega1280: MCU = atmega1280
-mega1280: F_CPU = 16000000
-mega1280: BOOTLOADER_ADDRESS = 1E000
-mega1280: CFLAGS += -D_MEGA_BOARD_
-mega1280: begin gccversion sizebefore build sizeafter end 
-			mv $(TARGET).hex stk500boot_v2_mega1280.hex
+#mega1280: MCU = atmega1280
+#mega1280: F_CPU = 16000000
+#mega1280: BOOTLOADER_ADDRESS = 1E000
+#mega1280: CFLAGS += -D_MEGA_BOARD_
+#mega1280: begin gccversion sizebefore build sizeafter end 
+#			mv $(TARGET).hex stk500boot_v2_mega1280.hex
 
 
 ############################################################
@@ -339,9 +348,9 @@ mega2560:	MCU = atmega2560
 mega2560:	F_CPU = 16000000
 mega2560:	BOOTLOADER_ADDRESS = 3E000
 mega2560:	CFLAGS += -D_MEGA_BOARD_
-mega2560:	begin gccversion sizebefore build sizeafter end 
+mega2560:	AVRDUDE_PORT = usb
+mega2560:	begin gccversion sizebefore build sizeafter program end 
 			mv $(TARGET).hex stk500boot_v2_mega2560.hex
-
 
 ############################################################
 #Initial config on Amber128 board
@@ -351,22 +360,22 @@ mega2560:	begin gccversion sizebefore build sizeafter end
 #	avrdude: safemode: efuse reads as FF
 #	Jul 17,	2010	<MLS> Adding 128 support
 ############################################################
-amber128: MCU = atmega128
-#amber128: F_CPU = 16000000
-amber128: F_CPU = 14745600
-amber128: BOOTLOADER_ADDRESS = 1E000
-amber128: CFLAGS += -D_BOARD_AMBER128_
-amber128: begin gccversion sizebefore build sizeafter end 
-			mv $(TARGET).hex stk500boot_v2_amber128.hex
+#amber128: MCU = atmega128
+##amber128: F_CPU = 16000000
+#amber128: F_CPU = 14745600
+#amber128: BOOTLOADER_ADDRESS = 1E000
+#amber128: CFLAGS += -D_BOARD_AMBER128_
+#amber128: begin gccversion sizebefore build sizeafter end 
+#			mv $(TARGET).hex stk500boot_v2_amber128.hex
 
 ############################################################
 #	Aug 23, 2010 	<MLS> Adding atmega2561 support
-m2561: MCU = atmega2561
-m2561: F_CPU = 8000000
-m2561: BOOTLOADER_ADDRESS = 3E000
-m2561: CFLAGS += -D_ANDROID_2561_ -DBAUDRATE=57600
-m2561: begin gccversion sizebefore build sizeafter end 
-			mv $(TARGET).hex stk500boot_v2_android2561.hex
+#m2561: MCU = atmega2561
+#m2561: F_CPU = 8000000
+#m2561: BOOTLOADER_ADDRESS = 3E000
+#m2561: CFLAGS += -D_ANDROID_2561_ -DBAUDRATE=57600
+#m2561: begin gccversion sizebefore build sizeafter end 
+#			mv $(TARGET).hex stk500boot_v2_android2561.hex
 
 
 ############################################################
@@ -377,22 +386,22 @@ m2561: begin gccversion sizebefore build sizeafter end
 #	Aug 23,	2010	<MLS> Adding cerebot 2560 @ 8mhz
 #avrdude -P usb -c usbtiny -p m2560 -v -U flash:w:/Arduino/WiringBootV2_upd1/stk500boot_v2_cerebotplus.hex 
 ############################################################
-cerebot:	MCU = atmega2560
-cerebot:	F_CPU = 8000000
-cerebot:	BOOTLOADER_ADDRESS = 3E000
-cerebot:	CFLAGS += -D_CEREBOTPLUS_BOARD_ -DBAUDRATE=38400 -DUART_BAUDRATE_DOUBLE_SPEED=1
-cerebot:	begin gccversion sizebefore build sizeafter end 
-			mv $(TARGET).hex stk500boot_v2_cerebotplus.hex
+#cerebot:	MCU = atmega2560
+#cerebot:	F_CPU = 8000000
+#cerebot:	BOOTLOADER_ADDRESS = 3E000
+#cerebot:	CFLAGS += -D_CEREBOTPLUS_BOARD_ -DBAUDRATE=38400 -DUART_BAUDRATE_DOUBLE_SPEED=1
+#cerebot:	begin gccversion sizebefore build sizeafter end 
+#			mv $(TARGET).hex stk500boot_v2_cerebotplus.hex
 
 
 ############################################################
 #	Aug 23, 2010 	<MLS> Adding atmega2561 support
-penguino: MCU = atmega32
-penguino: F_CPU = 16000000
-penguino: BOOTLOADER_ADDRESS = 7800
-penguino: CFLAGS += -D_PENGUINO_ -DBAUDRATE=57600
-penguino: begin gccversion sizebefore build sizeafter end 
-			mv $(TARGET).hex stk500boot_v2_penguino.hex
+#penguino: MCU = atmega32
+#penguino: F_CPU = 16000000
+#penguino: BOOTLOADER_ADDRESS = 7800
+#penguino: CFLAGS += -D_PENGUINO_ -DBAUDRATE=57600
+#penguino: begin gccversion sizebefore build sizeafter end 
+#			mv $(TARGET).hex stk500boot_v2_penguino.hex
 
 
 # Default target.
@@ -443,7 +452,21 @@ gccversion :
 
 # Program the device.  
 program: $(TARGET).hex $(TARGET).eep
+	@echo "Programing $(MCU).."
+	@echo MCU=$(MCU)
+	@echo F_CPU=$(F_CPU)
+	@echo BOOTLOADER_ADDRESS=$(BOOTLOADER_ADDRESS)
+	@echo CFLAGS=$(CFLAGS)
+	@echo "Unlock bootloader..."
+	$(AVRDUDE) $(AVRDUDE_FLAGS) -e -U lock:w:$(AVRDUDE_UNLOCK_BITS):m
+	@echo "Program fuses"
+	$(AVRDUDE) $(AVRDUDE_FLAGS) -U efuse:w:$(AVRDUDE_EXTENDED_FUSES):m \
+	  -U hfuse:w:$(AVRDUDE_HIGH_FUSES):m -U lfuse:w:$(AVRDUDE_LOW_FUSES):m
 	$(AVRDUDE) $(AVRDUDE_FLAGS) $(AVRDUDE_WRITE_FLASH) $(AVRDUDE_WRITE_EEPROM)
+	@echo "Lock bootloader..."
+	$(AVRDUDE) $(AVRDUDE_FLAGS) -U lock:w:$(AVRDUDE_LOCK_BITS):m
+	#@echo "Enter avrdude interactive mode..."
+	#$(AVRDUDE) $(AVRDUDE_FLAGS) -t
 
 
 # Generate avr-gdb config/init file which does the following:
@@ -560,7 +583,7 @@ clean: begin clean_list end
 clean_list :
 	@echo
 	@echo $(MSG_CLEANING)
-	$(REMOVE) *.hex
+	#$(REMOVE) *.hex
 	$(REMOVE) *.eep
 	$(REMOVE) *.cof
 	$(REMOVE) *.elf
