@@ -135,7 +135,15 @@ To download the bootloader:
 
 ## Comments
 
-The `Makefile` that ships with the `stk500boot.c` is pretty bad.  It was necessary
-to comment out all of the architectures other than `mega2560` to get it to work.
-The real problem was that the bootloader address getting set incorrectly.  For
-the meg2560, the correct address is `0x3E000`.
+* The `Makefile` that ships with the `stk500boot.c` is pretty bad.  It was necessary
+  to comment out all of the architectures other than `mega2560` to get it to work.
+  The real problem was that the bootloader address getting set incorrectly.  For
+  the meg2560, the correct address is `0x3E000` (= 2 &times 0x1F000 for 4096 bootloader).
+
+* The Rev. D Loki needs to have a RasPi2 plugged into to provide 3.3V for the level
+  shifting electronics.
+
+* The new Chinese AVRISP mk II programmer from china needs to be ununplugged from
+  the ISP connector after the bootloader programming.  On the Rev. D, the programmer
+  stalls until the ISP connector is unplugged.
+

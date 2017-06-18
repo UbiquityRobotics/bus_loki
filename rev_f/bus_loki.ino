@@ -1,4 +1,4 @@
-// Copyright (c) 2015 by Wayne C. Gramlich.  All rights reserved.
+// Copyright (c) 2015-2017 by Wayne C. Gramlich.  All rights reserved.
 
 #include <Bus_Slave.h>
 #include <Frame_Buffer.h>
@@ -18,6 +18,7 @@
 #define BUS_LOKI_PROGRAM_RAB 7		// RAB = ROS Arduino Bridge
 
 #define BUS_LOKI_PROGRAM BUS_LOKI_PROGRAM_RAB
+//#define BUS_LOKI_PROGRAM BUS_LOKI_PROGRAM_ENCODERS_TO_LEDS
 
 // Make sure we are using the ROS Arduino Bridge as configured for LOKI:
 #define TEST TEST_RAB_LOKI
@@ -32,13 +33,15 @@ class Loki_Motor_Encoder : Bus_Motor_Encoder {
   Integer encoder_get();
   void encoder_set(Integer encoder);
   void pwm_set(Byte pwm);
+  Integer motor_encoder_get();
+  Integer enable_pin_get();
  private:
   Logical encoder_invert_;
   Logical pwm_invert_;
+  Integer *encoder_pointer_;
   UByte input1_pin_;
   UByte input2_pin_;
   UByte enable_pin_;
-  Integer *encoder_pointer_;
 };
 
 class Loki_RAB_Sonar : RAB_Sonar {
@@ -129,16 +132,16 @@ static const int miso_pin = 50;
 static const int motor1enable_pin_rev_d = 45;     //pin39=servo5=D45=N35-pin3=H-Bridge1
 static const int motor1input1_pin_rev_d = 40;     //pin52=stdby =D40=TP20    =H-Bridge2
 static const int motor1input2_pin_rev_d = 44;     //pin40=servo6=D44=N36-pin3=H-Bridge7
-static const int motor1enable_pin_rev_f = 1;      //pin1=D1
-static const int motor1input1_pin_rev_f = 43;     //pin42=D43
+static const int motor1enable_pin_rev_f = 4;      //pin1=D4
+static const int motor1input1_pin_rev_f = 43;     //pin41=D43
 static const int motor1input2_pin_rev_f = 42;     //pin42=D42
 static const int motor2enable_pin_ = 5;
 static const int motor2input1_pin_ = 2;
 static const int motor2input2_pin_ = 3;
 
-static int motor1enable_pin_ = motor1enable_pin_rev_d;
-static int motor1input1_pin_ = motor1input1_pin_rev_d;
-static int motor1input2_pin_ = motor1input2_pin_rev_d;
+static int motor1enable_pin_ = motor1enable_pin_rev_f;
+static int motor1input1_pin_ = motor1input1_pin_rev_f;
+static int motor1input2_pin_ = motor1input2_pin_rev_f;
 
 // Define the UART's:
 NULL_UART null_uart;
@@ -276,9 +279,9 @@ Integer encoder2 = 0;
 Bus_Slave bus_slave((UART *)bus_uart, (UART *)host_uart);
 
 Loki_Motor_Encoder left_motor_encoder(motor1input1_pin_, motor1input2_pin_,
- motor1enable_pin_, (Logical)0, &encoder1, (Logical)0);
+ motor1enable_pin_, (Logical)0, &encoder1, (Logical)1);
 Loki_Motor_Encoder right_motor_encoder(motor2input1_pin_, motor2input2_pin_,
- motor2enable_pin_, (Logical)1, &encoder2, (Logical)1);
+ motor2enable_pin_, (Logical)1, &encoder2, (Logical)0);
 Loki_RAB_Sonar loki_rab_sonar((UART *)debug_uart);
 
 Bridge bridge(&avr_uart0, &avr_uart1, &avr_uart0, &bus_slave,
@@ -320,7 +323,7 @@ ISR(PCINT0_vect) {
 
   // For now, copy *PINB* over to the LEDS:
   encoder_counter += 1;
-  PORTC = PINB & 0xf0 | encoder_counter & 0xf;
+  PORTC = (PINB & 0xf0) | (encoder_counter & 0xf);
   //leds_byte_write(bits);
   //leds_byte_write(encoder_buffer_in);
   //host_uart->print("0123456789abcdef"[(bits >> 4) & 0xf]);
@@ -387,10 +390,10 @@ void setup() {
 
   // Initialize the sonar I/O ports:
   // Initialize pin directions for motors and encoders:
-  pinMode(encoder_l1_pin, INPUT);
-  pinMode(encoder_l2_pin, INPUT);
-  pinMode(encoder_r1_pin, INPUT);
-  pinMode(encoder_r2_pin, INPUT);
+  pinMode(encoder_l1_pin, INPUT_PULLUP);
+  pinMode(encoder_l2_pin, INPUT_PULLUP);
+  pinMode(encoder_r1_pin, INPUT_PULLUP);
+  pinMode(encoder_r2_pin, INPUT_PULLUP);
   pinMode(miso_pin, INPUT);
   pinMode(led0_pin, OUTPUT);
   pinMode(led1_pin, OUTPUT);
@@ -679,5 +682,9 @@ void Loki_Motor_Encoder::encoder_set(Integer encoder_value) {
     encoder_value = -encoder_value;
   }
   *encoder_pointer_ = encoder_value;
+}
+
+Integer Loki_Motor_Encoder::enable_pin_get() {
+  return enable_pin_;
 }
 

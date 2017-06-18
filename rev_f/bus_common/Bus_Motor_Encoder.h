@@ -49,7 +49,9 @@ class Bus_Motor_Encoder {
     return _pwm;
   };
 
-  // We supply these for debug purposes so we only expose the get
+  // We supply these for debug purposes so we only expose the get method:
+  virtual Integer enable_pin_get() = 0;
+
   Integer previous_pwm_get() {
     return _previous_pwm;
   };

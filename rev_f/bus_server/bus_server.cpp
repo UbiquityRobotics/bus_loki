@@ -470,6 +470,13 @@ void Bridge::loop(UByte mode) {
 	      _host_uart->string_print((Text)"115200\r\n");
 	      break;
 	    }
+	    case 'd': {
+	      // Print out some debug information ("d"):
+	      _host_uart->string_print((Text)"left_enable_pin=");
+	      _host_uart->integer_print(_left_motor_encoder->enable_pin_get());
+	      _host_uart->string_print((Text)"\r\n");
+	      break;
+	    }
 	    case 'e': {
 	      // Read encoders ("e"):
 	      Integer left_encoder = _left_motor_encoder->encoder_get();
