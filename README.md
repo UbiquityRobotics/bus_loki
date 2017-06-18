@@ -11,17 +11,17 @@ Loki robot.
 
 Loki is a small robot that is intended to be a used to learn
 how to use ROS (Robot Operating System.)  ROS runs on a
-Raspberry Pi 2 computer board and it plugs into the Loki
+Raspberry Pi 3 computer board and it plugs into the Loki
 printed circuit board to access 2 motors with drive electronics
-and wheel encoders, 16 sonars, a 5 mega pixel camera,
+and wheel encoders, 16 sonars, a 8 mega pixel camera,
 a 4 degree of freedom Arm, and a 6000mAH battery.
 Using a USB Wireless dongle, software is developed on a
-laptop/desktop system and downloaded into the Raspberry Pi 2
+laptop/desktop system and downloaded into the Raspberry Pi 3
 processor board.
 
 ## Specifications:
 
-* Runs ROS (Robot Operating System) on a Raspberry Pi 2 computer.
+* Runs ROS (Robot Operating System) on a Raspberry Pi 3 computer.
 
 * Dimensions: 250mm (L) x 110mm (W) x ~200mm (H)
 
@@ -45,7 +45,7 @@ processor board.
 
 * Expansion: 2x5 .1in Expansion Bus Connector
 
-* Camera: Upward pointing Raspberry Pi Camera (2592 x 1944 pixels)
+* Camera: Upward pointing Raspberry Pi v2 Camera (3280 × 2464  pixels)
 
 ## Running Loki
 
@@ -60,13 +60,13 @@ Do the following:
         cd ~/catkin_ws/src/ros_arduino_bridge/ros_arduino_python/config
         cp my_arduino_params.yaml.loki my_arduino_params.yaml
    
-3. Set up the RasPi2 serial port:
+3. Set up the RasPi3 serial port:
 
         # Wayne: Do we really need to do this?
         sudo mgetty -s 115200 /dev/ttyAMA0
 
 4. Make sure that the ROS_MASTER_URI environment variable is the same
-   on both your laptop and on the RasPi2.  (This is a bit involved
+   on both your laptop and on the RasPi3.  (This is a bit involved
    and we may add to this section later as needed):
 
         env | grep ROS_MASTER_URI     # Show settings of env. var.
@@ -78,7 +78,7 @@ Do the following:
 
    You must not see any errors that stop the launch.
 
-6. Get the sonar locations published.  Log into the RasPi2 again
+6. Get the sonar locations published.  Log into the RasPi again
    and run the following command:
 
         # Launch file is located in fiducials_lib for obscure reasons:
@@ -89,11 +89,11 @@ For the PS3 Controller:
 1. Make sure your controller is charged.
 
 2. For joystick control you need either the PS2 or XBox usb dongle
-   pluged into the RasPi2.
+   pluged into the RasPi.
 
 3. Pair your controller. (XBox: Tiny reset in back then press
    chrome X key, PS2: Hold select key).  Run the following
-   command on the RasPi2:
+   command on the RasPi:
 
         roslaunch joy_input joystick.launch
 
@@ -106,7 +106,7 @@ Fiducial SLAM:
    file and the size of your fiducials needs to be setup in a fiducial
    launch file.
 
-4. Run 'roslaunch fiducial_slam fiducial_raspi_3d.launch` on RasPi2
+4. Run 'roslaunch fiducial_slam fiducial_raspi_3d.launch` on RasPi
 
 
 This stuff may be getting old:
@@ -114,7 +114,7 @@ This stuff may be getting old:
 
 Do the following: (The first setup step is a turse set of reminders and not detailed)
 
-1. Initial setup includes booting the RasPi2 and the source ./devel/setup.bash done.
+1. Initial setup includes booting the RasPi and the source ./devel/setup.bash done.
    Have the my_arduino_params.yaml file copied over from my_arduino_params.yaml.loki
    Run 'sudo mgetty -s 115200 /dev/ttyAMA0' on the RaspPi2 to setup serial port
    To run fiducial localization you need a calibrated camera 'yaml' file
@@ -123,12 +123,12 @@ Do the following: (The first setup step is a turse set of reminders and not deta
    (This is a bit involved and we may add to this section later as needed)
 
 2. Hit the reset switch on the Loki near the green leds and then
-   Run `roslaunch ros_arduino_python arduino.launch` on RasPi2
+   Run `roslaunch ros_arduino_python arduino.launch` on RasPi
    You must not see any errors that stop the launch.
 
 
 3. For joystick control you need either the PS2 or XBox usb dongle pluged 
-   into the RasPi2.   You will have to plug it into USB then pair as follows:
+   into the RasPi.   You will have to plug it into USB then pair as follows:
 
    XBox:  Press tiny reset button in back if you have not paired before.
    If you have paired before press big chrome X button.
