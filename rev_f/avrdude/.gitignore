@@ -1,0 +1,7 @@
+.deps
+*.lo
+.libs
+config.log
+atmel-docs
+doc
+.cvsignore
