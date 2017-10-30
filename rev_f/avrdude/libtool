@@ -1,7 +1,7 @@
 #! /bin/bash
 # Generated automatically by config.status (avrdude) 6.3-20160220
 # Libtool was configured on host onkyo:
-# NOTE: Changes made to this file will be lost: look at ltmain.sh.
+# NOTE: Changes made to this file will be lost: look at ltmain.sh
 
 # Provide generalized library-building support services.
 # Written by Gordon Matzigkeit, 1996
