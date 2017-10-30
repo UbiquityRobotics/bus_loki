@@ -1,7 +1,17 @@
 .cvsignore
 .deps
 *.lo
+*.la
 .libs
+Makefile*
+autom4te.cache*
+avrdude.conf.tmp
+avrdude.spec
 atmel-docs
 avrdude
 config.log
+config.status
+libtool
+stamp-h1
+tools
+windows
