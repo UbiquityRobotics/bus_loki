@@ -1,7 +1,7 @@
+.cvsignore
 .deps
 *.lo
 .libs
-config.log
 atmel-docs
-doc
-.cvsignore
+avrdude
+config.log
