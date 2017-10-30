@@ -11,6 +11,9 @@ atmel-docs
 avrdude
 config.log
 config.status
+config_gram.c
+config_gram.h
+lexer.c
 libtool
 stamp-h1
 tools
