@@ -395,6 +395,7 @@ void Bridge::loop(UByte mode) {
     case TEST_RAB_FREYA:
     case TEST_RAB_LOKI: {
       // Some constants:
+      static const UInteger BINARY_BUFFER_SIZE = 8;
       static const UInteger PID_RATE = 50;			// Hz.
       static const UInteger PID_INTERVAL = 1000 / PID_RATE;	// mSec.
       static const UInteger MAXIMUM_ARGUMENTS = 6;
@@ -403,6 +404,9 @@ void Bridge::loop(UByte mode) {
       // Some variables that need to be unchanged through each loop iteration:
       static Integer arguments[MAXIMUM_ARGUMENTS];
       static UByte arguments_index = 0;
+      static UShort binary_buffer[BINARY_BUFFER_SIZE];
+      static UInteger binary_buffer_index = 0;
+      static Logical binary_mode = (Logical)0;
       static Character command = ' ';
       static Logical have_number = (Logical)0;
       static Logical is_negative = (Logical)0;
@@ -410,6 +414,38 @@ void Bridge::loop(UByte mode) {
       static UInteger next_pid = 0;
       static Integer number = 0;
 
+      // Mangni protocol command:
+      static const UShort binary_platform_request[] = {
+	0x7e,	// Start of command
+	0x3a,	// Register read request
+        0x31,	// Platform register number
+        0x00,
+        0x00,
+        0x00,
+        0x00,
+	0x94    // Checksum
+      };
+      static const UShort binary_platform_response[] = {
+	0x7e,	// Start of command
+	0x3b,   // Register read response
+	0x31,   // Platform register number
+	0x00,
+	0x00,
+	0x00,
+	0x01,	// Loki
+	0x92    // Checksum: 01f = 0xff - ((0x3b + 0x31 + 0x00 + 0x00 + 0x00 + 0x01) & 0xff)
+      };
+      static const UShort binary_error_response[] = {
+	0x7e,  // Start of command
+	0x00,
+	0x00,
+	0x00,
+	0x00,
+	0x00,
+	0x00,
+	0xff,	// Checksum
+      };
+      
       // We need to know what time it is *now*:
       UInteger now = millis();
 
@@ -418,366 +454,406 @@ void Bridge::loop(UByte mode) {
 	// Grab the next character since we have it:
 	Character character = (Character)_host_uart->frame_get();
 
-	// Echo the input:  (for terminal but DON'T use for ROS Arduino Bridge
-        if (rab_sonar_->debug_flags_get() & DBG_FLAG_ECHO_INPUT_CHARS) {
+	// Echo the input:  (for terminal but DON'T use for ROS Arduino Bridge):
+	if (rab_sonar_->debug_flags_get() & DBG_FLAG_ECHO_INPUT_CHARS) {
 	  _host_uart->frame_put((UShort)character);
 	  if (character == '\r') {
 	    _host_uart->frame_put((UShort)'\n');
 	  }
 	}
 
-	// Parse *number* one *character* at a time:
-        if (character == '-') {
-	  // Remember if we have a negative sign:
-	  is_negative = (Logical)1;
-        } else if ('0' <= character && character <= '9') {
-	  // Deal with next decimal digit:
-	  number = number * 10 + (Integer)(character - '0');
-	  have_number = (Logical)1;
-	  //debug_uart->string_print((Text)"num=");
-	  //debug_uart->integer_print((Integer)number);
-	  //debug_uart->string_print((Text)" ");
-	} else if (character == ' ' || character == ':' || character == '\r') {
-	  // Space, colon, and carriage-return terminate a number:
-	  if (have_number) {
-	    // Deal with negative numbers:
-	    if (is_negative) {
-	      number = -number;
+	// Process *character* in either binary mode or textual mode:
+	if (binary_mode) {
+	  // Append *character* to *binary_buffer*:
+	  binary_buffer[binary_buffer_index++] = character;
+
+	  // If *binarry_buffer* is full, process the command an exit binary mode:
+	  if (binary_buffer_index >= BINARY_BUFFER_SIZE) {
+	    // If *binary_buffer* matches *binary_platform_request*, we will return
+	    // correct *binary_platform_response*:
+	    const UShort *response = binary_platform_response;
+	    for (UShort index = 0; index < BINARY_BUFFER_SIZE; index++) {
+	      if (binary_buffer[index] != binary_platform_request[index]) {
+		response = binary_error_response;
+		break;
+	      }
+	    }
+	
+	    // Send *response* up to the host:
+	    for (int index = 0; index < BINARY_BUFFER_SIZE; index++) {
+	      _host_uart->frame_put((UShort)response[index]);
+	    }
+
+	    // Reset *binary_buffer_index* and exit *binary_mode*:
+	    binary_buffer_index = 0;
+	    binary_mode = (Logical)0;
+	  }
+	} else {
+	  // Process *character in textual mode:
+	  // Parse *number* one *character* at a time:
+	  if (character == '-') {
+	    // Remember if we have a negative sign:
+	    is_negative = (Logical)1;
+	  } else if ('0' <= character && character <= '9') {
+	    // Deal with next decimal digit:
+	    number = number * 10 + (Integer)(character - '0');
+	    have_number = (Logical)1;
+	    //debug_uart->string_print((Text)"num=");
+	    //debug_uart->integer_print((Integer)number);
+	    //debug_uart->string_print((Text)" ");
+	  } else if (character == ' ' || character == ':' || character == '\r') {
+	    // Space, colon, and carriage-return terminate a number:
+	    if (have_number) {
+	      // Deal with negative numbers:
+	      if (is_negative) {
+		number = -number;
+		is_negative = (Logical)0;
+	      }
+
+	      // Stuff *number* into the *arguments* list:
+	      arguments[arguments_index++] = number;
+	      if (arguments_index >= MAXIMUM_ARGUMENTS) {
+		arguments_index = MAXIMUM_ARGUMENTS - 1;
+	      }
+	      number = 0;
+	      have_number = (Logical)0;
+
+	      // Reset the *number* parser:
+	      number = 0;
+	      have_number = (Logical)0;
 	      is_negative = (Logical)0;
 	    }
-
-	    // Stuff *number* into the *arguments* list:
-	    arguments[arguments_index++] = number;
-	    number = 0;
-	    have_number = (Logical)0;
-
-	    // Reset the *number* parser:
-	    number = 0;
-	    have_number = (Logical)0;
-	    is_negative = (Logical)0;
+	  } else if ('a' <= character && character <= 'z') {
+	    command = character;
 	  }
-        } else if ('a' <= character && character <= 'z') {
-	  command = character;
-	}
 
-	// Execute a command if we get '\r':
-	if (character == '\r') {
-	  //host_uart->string_print((Text)"<");
-	  // Dispatch on *command* character:
-	  switch (command) {
-	    case 'b': {
-	      // Print out baud rate ("b"):
-	      _host_uart->string_print((Text)"115200\r\n");
-	      break;
-	    }
-	    case 'd': {
-	      // Print out some debug information ("d"):
-	      _host_uart->string_print((Text)"left_enable_pin=");
-	      _host_uart->integer_print(_left_motor_encoder->enable_pin_get());
-	      _host_uart->string_print((Text)"\r\n");
-	      break;
-	    }
-	    case 'e': {
-	      // Read encoders ("e"):
-	      Integer left_encoder = _left_motor_encoder->encoder_get();
-	      Integer right_encoder = _right_motor_encoder->encoder_get();
+	  // Execute a command if we get '\r':
+	  if (character == '\r') {
+	    //host_uart->string_print((Text)"<");
+	    // Dispatch on *command* character:
+	    switch (command) {
+	      case 'b': {
+		// Print out baud rate ("b"):
+		_host_uart->string_print((Text)"115200\r\n");
+		break;
+	      }
+	      case 'd': {
+		// Print out some debug information ("d"):
+		_host_uart->string_print((Text)"left_enable_pin=");
+		_host_uart->integer_print(_left_motor_encoder->enable_pin_get());
+		_host_uart->string_print((Text)"\r\n");
+		break;
+	      }
+	      case 'e': {
+		// Read encoders ("e"):
+		Integer left_encoder = _left_motor_encoder->encoder_get();
+		Integer right_encoder = _right_motor_encoder->encoder_get();
 
-	      // Send the results back:
-	      _host_uart->integer_print(left_encoder);
-	      _host_uart->string_print((Text)" ");
-	      _host_uart->integer_print(right_encoder);
-	      _host_uart->string_print((Text)"\r\n");
-	      break;
-	    }
-	    case 'm': {
-	      // Set motor speeds ("m left, right"):
-	      Integer left_speed = arguments[0];
-	      Integer right_speed = arguments[1];
-	      
-	      // For PID code:
-	      _is_moving = (Logical)(left_speed != 0 || right_speed != 0);
-	      if (_is_moving) {
-		_left_motor_encoder->target_ticks_per_frame_set(left_speed);
-		_right_motor_encoder->target_ticks_per_frame_set(right_speed);
+		// Send the results back:
+		_host_uart->integer_print(left_encoder);
+		_host_uart->string_print((Text)" ");
+		_host_uart->integer_print(right_encoder);
+		_host_uart->string_print((Text)"\r\n");
+		break;
+	      }
+	      case 'm': {
+		// Set motor speeds ("m left, right"):
+		Integer left_speed = arguments[0];
+		Integer right_speed = arguments[1];
+		
+		// For PID code:
+		_is_moving = (Logical)(left_speed != 0 || right_speed != 0);
+		if (_is_moving) {
+		  _left_motor_encoder->target_ticks_per_frame_set(left_speed);
+		  _right_motor_encoder->target_ticks_per_frame_set(right_speed);
 
-                if ((rab_sonar_->debug_flags_get() & DBG_FLAG_PID_DISABLE_OK) &&
-	         (_left_motor_encoder->proportional_get()  == 0) && 
-	         (_right_motor_encoder->proportional_get() == 0))  {
-                  // Do normal 'm' command unless Kp are zero, then do
-		  // direct pwm set bypass PID code if Kp are all zero
-		  // and scale pwm based on 10 as top speed
-                  int motLeftSpeed;
-                  int motRightSpeed;
-                  if (left_speed > 0) {
-                    motLeftSpeed =
-		     (left_speed*PID_OVERRIDE_FACTOR) + PID_OVERRIDE_OFFSET;
-                    if (motLeftSpeed > 126) {
-		      motLeftSpeed = 126;
+		  if ((rab_sonar_->debug_flags_get() & DBG_FLAG_PID_DISABLE_OK) &&
+		   (_left_motor_encoder->proportional_get()  == 0) && 
+		   (_right_motor_encoder->proportional_get() == 0))  {
+		    // Do normal 'm' command unless Kp are zero, then do
+		    // direct pwm set bypass PID code if Kp are all zero
+		    // and scale pwm based on 10 as top speed
+		    int motLeftSpeed;
+		    int motRightSpeed;
+		    if (left_speed > 0) {
+		      motLeftSpeed =
+		       (left_speed*PID_OVERRIDE_FACTOR) + PID_OVERRIDE_OFFSET;
+		      if (motLeftSpeed > 126) {
+			motLeftSpeed = 126;
+		      }
+		    } else {
+		      motLeftSpeed =
+		       (left_speed*PID_OVERRIDE_FACTOR) - PID_OVERRIDE_OFFSET;
+		      if (motLeftSpeed < -126) {
+			motLeftSpeed = -126;
+		      }
 		    }
-                  } else {
-                    motLeftSpeed =
-		     (left_speed*PID_OVERRIDE_FACTOR) - PID_OVERRIDE_OFFSET;
-		    if (motLeftSpeed < -126) {
-		      motLeftSpeed = -126;
+		    if (right_speed > 0) {
+		      motRightSpeed =
+		       (right_speed*PID_OVERRIDE_FACTOR) + PID_OVERRIDE_OFFSET;
+		      if (motRightSpeed > 126) {
+			motRightSpeed = 126;
+		      }
+		    } else {
+		      motRightSpeed =
+		       (right_speed*PID_OVERRIDE_FACTOR) - PID_OVERRIDE_OFFSET;
+		      if (motRightSpeed < -126) {
+			motRightSpeed = -126;
+		      }
 		    }
-                  }
-                  if (right_speed > 0) {
-                    motRightSpeed =
-		     (right_speed*PID_OVERRIDE_FACTOR) + PID_OVERRIDE_OFFSET;
-                    if (motRightSpeed > 126) {
-		      motRightSpeed = 126;
-		    }
-                  } else {
-                    motRightSpeed =
-		     (right_speed*PID_OVERRIDE_FACTOR) - PID_OVERRIDE_OFFSET;
-                    if (motRightSpeed < -126) {
-		      motRightSpeed = -126;
-		    }
-                  }
-	          _left_motor_encoder->pwm_set(motLeftSpeed);
-	          _right_motor_encoder->pwm_set(motRightSpeed);
-                }
-	      } else {
-		motor_speeds_set(0, 0);
-	      }
-	      // Compute *direction* with which corresponds to the
-	      // the sum of *left_speed* and *right_speed* but reduced
-	      // down to a single signed byte:
-	      if (left_speed > 63) {
-		left_speed = 63;
-	      } else if (left_speed < -63) {
-		left_speed = -63;
-	      }
- 	      if (right_speed > 63) {
-		right_speed = 63;
-	      } else if (right_speed < -63) {
-		right_speed = -63;
-	      }
-	      Byte direction = (Byte)left_speed + (Byte)right_speed;
-	      rab_sonar_->direction_set(direction);
+		    _left_motor_encoder->pwm_set(motLeftSpeed);
+		    _right_motor_encoder->pwm_set(motRightSpeed);
+		  }
+		} else {
+		  motor_speeds_set(0, 0);
+		}
+		// Compute *direction* with which corresponds to the
+		// the sum of *left_speed* and *right_speed* but reduced
+		// down to a single signed byte:
+		if (left_speed > 63) {
+		  left_speed = 63;
+		} else if (left_speed < -63) {
+		  left_speed = -63;
+		}
+		 if (right_speed > 63) {
+		  right_speed = 63;
+		} else if (right_speed < -63) {
+		  right_speed = -63;
+		}
+		Byte direction = (Byte)left_speed + (Byte)right_speed;
+		rab_sonar_->direction_set(direction);
 
-	      // Print the usual "OK" result:
-	      _host_uart->string_print((Text)"OK\r\n");
-	      break;
-	    }
-	    case 'o': {      // read a sensor directly inline in units of mm
-              // ROS reading of 'pins' or sensors.  ("o 3"):
-              // We will return ultrasonic sensor readings for one unit 
-              // from the background sampled array of data measured earlier
-	      UByte sonarUnit = (UByte)arguments[0];
-
-              // Read sensor on Loki platform
-              Short distInMm = rab_sonar_->ping_get(sonarUnit);
-	      _host_uart->integer_print((int)distInMm);
-	      _host_uart->string_print((Text)" mm\r\n");
-
-	      break;
-	    }
-	    case 'p': {
-	      // Read (ping) sonar requested  ("p 5"): 
-	      Integer sonar_unit = arguments[0];
-
-              // If sonar number is 0 read a bunch of them in units of cm
-	      UByte sonars_count = rab_sonar_->sonars_count_get();
-              if (sonar_unit < sonars_count) {
-                // Read sensor on Loki platform from cached measurements
-                UShort distance = rab_sonar_->ping_get(sonar_unit);
-	        _host_uart->integer_print((Integer)distance);
-	        _host_uart->string_print((Text)"\r\n");
-              } else {
-                for (UByte unit = 0; unit < sonars_count ; unit++) {
-                  UShort distance = rab_sonar_->ping_get(unit);
-	          _host_uart->integer_print((Integer)distance);
-	          _host_uart->string_print((Text)" ");
-                }
-	        _host_uart->string_print((Text)"\r\n");
-              }
-	      break;
-	    }
-	    case 'q': {
-	      // Flush the sensor queue.  The format of the response is
-	      //
-	      //   delta_time_base sensor1 sensor2 ... sensorN
-	      //
-	      // where:
-	      //
-	      // * *delta_time_base* is the change in time_base from the
-	      //   the previous *time_base* measured in microseconds.
-	      //   All sensor times are relative to the new *time_base*.
-	      //
-	      // * *SensorI* is a sensor triple of the form "id:time:value"
-	      //   where *id* is a number that identifies the sensor, *time*
-	      //   is a signed time in microseconds relative to *time_base*,
-	      //   and *value* is a signed value for the sensor.
-	      //
-	      // For now, the sensor are hard coded as:
-	      //
-	      // * 0: left encoder    # Value is a delta from the prevous value
-	      // * 1: right encoder   # Value is a delta from the previous value
-	      // * 2: Sonar 0         # Value is the distance in microseconds:
-	      // * 3: Sonar 1         # Value is the distance in microseconds:
-	      //   ...
-	      // * 17: Sonar 15       # Value is the distance in microseconds:
-
-	      // Send the increase in *time_base_* and update it as well:
-	      UInteger next_time_base = micros();
-	      _host_uart->integer_print((Integer)(next_time_base - time_base_));
-	      time_base_ = next_time_base;
-
-	      // Grab the left/right encoder values:
-	      UInteger left_encoder = _left_motor_encoder->encoder_get();
-	      UInteger right_encoder = _right_motor_encoder->encoder_get();
-
-	      //_host_uart->string_print((Text)" [");
-	      //_host_uart->integer_print((Integer)left_encoder);
-	      //_host_uart->string_print((Text)":");
-	      //_host_uart->integer_print((Integer)right_encoder);
-	      //_host_uart->string_print((Text)"]");
-
-	      // Send left *left encoder* delta if it changed:
-	      if (left_encoder != previous_left_encoder_) {
-		_host_uart->string_print((Text)" 0:0:");
-		_host_uart->integer_print(
-		  (Integer)(left_encoder - previous_left_encoder_));
-		previous_left_encoder_ = left_encoder;
-	      }
-	      
-	      // Send the *right_encoder* delta if it changed:
-	      if (right_encoder != previous_right_encoder_) {
-		_host_uart->string_print((Text)" 1:0:");
-		_host_uart->integer_print(
-		  (Integer)(right_encoder - previous_right_encoder_));
-		previous_right_encoder_ = right_encoder;
-	      }
-
-	      // Sonar queue responses go here:
-	      rab_sonar_->queue_poll(_host_uart, time_base_, 2);
-
-	      // Terminate the response:
-	      _host_uart->string_print((Text)"\r\n");
-	      break;
-	    }
-	    case 'r': {
-	      // Reset encoders ("r"):
-	      _left_motor_encoder->encoder_set(0);
-	      _right_motor_encoder->encoder_set(0);
-
-	      // Print the usual "OK" result:
-	      _host_uart->string_print((Text)"OK\r\n");
-	      break;
-	    }
-	    case 's': {
-	      // Sonar configure ("s sonar_id class left_id right_id"):
-	      
-	      if (arguments_index == 3) {
-		UByte sonar_id = arguments[0];
-		Sonar_Class sonar_class = (Sonar_Class)arguments[1];
-		Byte left_id = arguments[2];
-		Byte right_id = arguments[3];
-		rab_sonar_->configure(sonar_id, sonar_class, left_id, right_id);
+		// Print the usual "OK" result:
 		_host_uart->string_print((Text)"OK\r\n");
-	      } else {
-		_host_uart->string_print((Text)"Bad s command\r\n");
+		break;
 	      }
-	      break;
+	      case 'o': {      // read a sensor directly inline in units of mm
+		// ROS reading of 'pins' or sensors.  ("o 3"):
+		// We will return ultrasonic sensor readings for one unit 
+		// from the background sampled array of data measured earlier
+		UByte sonarUnit = (UByte)arguments[0];
+
+		// Read sensor on Loki platform
+		Short distInMm = rab_sonar_->ping_get(sonarUnit);
+		_host_uart->integer_print((int)distInMm);
+		_host_uart->string_print((Text)" mm\r\n");
+
+		break;
+	      }
+	      case 'p': {
+		// Read (ping) sonar requested  ("p 5"): 
+		Integer sonar_unit = arguments[0];
+
+		// If sonar number is 0 read a bunch of them in units of cm
+		UByte sonars_count = rab_sonar_->sonars_count_get();
+		if (sonar_unit < sonars_count) {
+		  // Read sensor on Loki platform from cached measurements
+		  UShort distance = rab_sonar_->ping_get(sonar_unit);
+		  _host_uart->integer_print((Integer)distance);
+		  _host_uart->string_print((Text)"\r\n");
+		} else {
+		  for (UByte unit = 0; unit < sonars_count ; unit++) {
+		    UShort distance = rab_sonar_->ping_get(unit);
+		    _host_uart->integer_print((Integer)distance);
+		    _host_uart->string_print((Text)" ");
+		  }
+		  _host_uart->string_print((Text)"\r\n");
+		}
+		break;
+	      }
+	      case 'q': {
+		// Flush the sensor queue.  The format of the response is
+		//
+		//   delta_time_base sensor1 sensor2 ... sensorN
+		//
+		// where:
+		//
+		// * *delta_time_base* is the change in time_base from the
+		//   the previous *time_base* measured in microseconds.
+		//   All sensor times are relative to the new *time_base*.
+		//
+		// * *SensorI* is a sensor triple of the form "id:time:value"
+		//   where *id* is a number that identifies the sensor, *time*
+		//   is a signed time in microseconds relative to *time_base*,
+		//   and *value* is a signed value for the sensor.
+		//
+		// For now, the sensor are hard coded as:
+		//
+		// * 0: left encoder    # Value is a delta from the prevous value
+		// * 1: right encoder   # Value is a delta from the previous value
+		// * 2: Sonar 0	 # Value is the distance in microseconds:
+		// * 3: Sonar 1	 # Value is the distance in microseconds:
+		//   ...
+		// * 17: Sonar 15       # Value is the distance in microseconds:
+
+		// Send the increase in *time_base_* and update it as well:
+		UInteger next_time_base = micros();
+		_host_uart->integer_print((Integer)(next_time_base - time_base_));
+		time_base_ = next_time_base;
+
+		// Grab the left/right encoder values:
+		UInteger left_encoder = _left_motor_encoder->encoder_get();
+		UInteger right_encoder = _right_motor_encoder->encoder_get();
+
+		//_host_uart->string_print((Text)" [");
+		//_host_uart->integer_print((Integer)left_encoder);
+		//_host_uart->string_print((Text)":");
+		//_host_uart->integer_print((Integer)right_encoder);
+		//_host_uart->string_print((Text)"]");
+
+		// Send left *left encoder* delta if it changed:
+		if (left_encoder != previous_left_encoder_) {
+		  _host_uart->string_print((Text)" 0:0:");
+		  _host_uart->integer_print(
+		    (Integer)(left_encoder - previous_left_encoder_));
+		  previous_left_encoder_ = left_encoder;
+		}
+		
+		// Send the *right_encoder* delta if it changed:
+		if (right_encoder != previous_right_encoder_) {
+		  _host_uart->string_print((Text)" 1:0:");
+		  _host_uart->integer_print(
+		    (Integer)(right_encoder - previous_right_encoder_));
+		  previous_right_encoder_ = right_encoder;
+		}
+
+		// Sonar queue responses go here:
+		rab_sonar_->queue_poll(_host_uart, time_base_, 2);
+
+		// Terminate the response:
+		_host_uart->string_print((Text)"\r\n");
+		break;
+	      }
+	      case 'r': {
+		// Reset encoders ("r"):
+		_left_motor_encoder->encoder_set(0);
+		_right_motor_encoder->encoder_set(0);
+
+		// Print the usual "OK" result:
+		_host_uart->string_print((Text)"OK\r\n");
+		break;
+	      }
+	      case 's': {
+		// Sonar configure ("s sonar_id class left_id right_id"):
+		
+		if (arguments_index == 3) {
+		  UByte sonar_id = arguments[0];
+		  Sonar_Class sonar_class = (Sonar_Class)arguments[1];
+		  Byte left_id = arguments[2];
+		  Byte right_id = arguments[3];
+		  rab_sonar_->configure(sonar_id, sonar_class, left_id, right_id);
+		  _host_uart->string_print((Text)"OK\r\n");
+		} else {
+		  _host_uart->string_print((Text)"Bad s command\r\n");
+		}
+		break;
+	      }
+	      case 'u': {
+		// Update or just show PID constants ("u Kp Kd Ki Ko Ci");
+
+		if (arguments_index == 5) {
+		  _left_motor_encoder->proportional_set(arguments[0]);
+		  _left_motor_encoder->derivative_set(arguments[1]);
+		  _left_motor_encoder->integral_set(arguments[2]);
+		  _left_motor_encoder->denominator_set(arguments[3]);
+		  _left_motor_encoder->integral_cap_set(arguments[4]);
+
+		  _right_motor_encoder->proportional_set(arguments[0]);
+		  _right_motor_encoder->derivative_set(arguments[1]);
+		  _right_motor_encoder->integral_set(arguments[2]);
+		  _right_motor_encoder->denominator_set(arguments[3]);
+		  _right_motor_encoder->integral_cap_set(arguments[4]);
+		  _host_uart->string_print((Text)"OK\r\n");
+		}
+
+		// For debugging:
+		if ((arguments_index < 5) ||
+		    (rab_sonar_->debug_flags_get() & DBG_FLAG_PARAMETER_SETUP)) {
+		  _host_uart->string_print((Text)"Kp ");
+		  _debug_uart->integer_print(
+		   _left_motor_encoder->proportional_get());
+		  _host_uart->string_print((Text)"  Kd ");
+		  _debug_uart->integer_print(
+		   _left_motor_encoder->derivative_get());
+		  _host_uart->string_print((Text)"  Ki ");
+		  _debug_uart->integer_print(
+		   _left_motor_encoder->integral_get());
+		  _host_uart->string_print((Text)"  Ko ");
+		  _debug_uart->integer_print(
+		   _left_motor_encoder->denominator_get());
+		  _host_uart->string_print((Text)"  Ci ");
+		  _debug_uart->integer_print(
+		   _left_motor_encoder->integral_cap_get());
+		  _host_uart->string_print((Text)"\r\n");
+		}
+
+		// Print the usual "OK" result:
+		_host_uart->string_print((Text)"OK\r\n");
+		break;
+	      }
+	      case 'v': {
+		// Set verbosity of debug messages  ("v 5"):
+		Integer debug_flags = arguments[0];
+
+		// set the bits in the system wide debug flags
+		rab_sonar_->debug_flags_set(debug_flags);
+
+		// Print the usual "OK" result:
+		_host_uart->string_print((Text)"OK\r\n");
+		break;
+	      }
+	      case 'z': {
+		// Set motor speeds ("z left right"):
+		Integer left_speed = arguments[0];
+		Integer right_speed = arguments[1];
+		
+		// Cap values to range of 8-bit signed value or we get
+		// confusing rollover:
+		if (left_speed > 127) {
+		  left_speed = 127;
+		} else if (left_speed < -127) {
+		  left_speed = -127;
+		}
+		if (right_speed > 127) {
+		  right_speed = 127;
+		} else if (right_speed < -127) {
+		  right_speed = -127;
+		}
+
+		// For PID code:
+		_left_motor_encoder->pwm_set(left_speed);
+		_right_motor_encoder->pwm_set(right_speed);
+
+		// Print the usual "OK" result:
+		_host_uart->string_print((Text)"OK\r\n");
+		break;
+	      }
+	      case 0x7e: {
+		// Deal with a request for platform id.  This is done using the binary Magni line
+		// protocol.  The request message is 8 bytes long and the response is 8 bytes long.
+		binary_buffer[0] = 0x7e;
+		binary_buffer_index = 1;
+		binary_mode = (Logical)1;
+		break;
+	      }	
+	      default: {
+		_host_uart->string_print((Text)"Invalid Command!\r\n");
+		break;
+	      }
 	    }
-	    case 'u': {
-	      // Update or just show PID constants ("u Kp Kd Ki Ko Ci");
+	    command = '?';
 
-              if (arguments_index == 5) {
-	        _left_motor_encoder->proportional_set(arguments[0]);
-	        _left_motor_encoder->derivative_set(arguments[1]);
-	        _left_motor_encoder->integral_set(arguments[2]);
-	        _left_motor_encoder->denominator_set(arguments[3]);
-	        _left_motor_encoder->integral_cap_set(arguments[4]);
-
-	        _right_motor_encoder->proportional_set(arguments[0]);
-	        _right_motor_encoder->derivative_set(arguments[1]);
-	        _right_motor_encoder->integral_set(arguments[2]);
-	        _right_motor_encoder->denominator_set(arguments[3]);
-	        _right_motor_encoder->integral_cap_set(arguments[4]);
-	        _host_uart->string_print((Text)"OK\r\n");
-              }
-
-	      // For debugging:
-              if ((arguments_index < 5) ||
-                  (rab_sonar_->debug_flags_get() & DBG_FLAG_PARAMETER_SETUP)) {
-	        _host_uart->string_print((Text)"Kp ");
-	        _debug_uart->integer_print(
-		 _left_motor_encoder->proportional_get());
-	        _host_uart->string_print((Text)"  Kd ");
-	        _debug_uart->integer_print(
-		 _left_motor_encoder->derivative_get());
-	        _host_uart->string_print((Text)"  Ki ");
-	        _debug_uart->integer_print(
-		 _left_motor_encoder->integral_get());
-	        _host_uart->string_print((Text)"  Ko ");
-	        _debug_uart->integer_print(
-		 _left_motor_encoder->denominator_get());
-	        _host_uart->string_print((Text)"  Ci ");
-	        _debug_uart->integer_print(
-		 _left_motor_encoder->integral_cap_get());
-	        _host_uart->string_print((Text)"\r\n");
-              }
-
-	      // Print the usual "OK" result:
-	      _host_uart->string_print((Text)"OK\r\n");
-	      break;
-	    }
-	    case 'v': {
-              // Set verbosity of debug messages  ("v 5"):
-	      Integer debug_flags = arguments[0];
-
-              // set the bits in the system wide debug flags
-              rab_sonar_->debug_flags_set(debug_flags);
-
-	      // Print the usual "OK" result:
-	      _host_uart->string_print((Text)"OK\r\n");
-	      break;
-	    }
-	    case 'z': {
-	      // Set motor speeds ("z left right"):
-	      Integer left_speed = arguments[0];
-	      Integer right_speed = arguments[1];
-	      
-              // Cap values to range of 8-bit signed value or we get
-	      // confusing rollover:
-              if (left_speed > 127) {
-                left_speed = 127;
-              } else if (left_speed < -127) {
-                left_speed = -127;
-              }
-              if (right_speed > 127) {
-                right_speed = 127;
-              } else if (right_speed < -127) {
-                right_speed = -127;
-              }
-
-	      // For PID code:
-	      _left_motor_encoder->pwm_set(left_speed);
-	      _right_motor_encoder->pwm_set(right_speed);
-
-	      // Print the usual "OK" result:
-	      _host_uart->string_print((Text)"OK\r\n");
-	      break;
-	    }
-	    default: {
-	      _host_uart->string_print((Text)"Invalid Command!\r\n");
-	      break;
-	    }
+	    // Reset the *arguments_index* for the next command:
+	    arguments_index = 0;
+	    //host_uart->string_print((Text)">\r\n");
 	  }
-	  command = '?';
-
-	  // Reset the *arguments_index* for the next command:
-	  arguments_index = 0;
-	  //host_uart->string_print((Text)">\r\n");
 	}
       }
 
       // Do we need to do a PID update cycle?:
       if (now > next_pid) {
 	pid_update(mode);
-        next_pid += PID_INTERVAL;
+	next_pid += PID_INTERVAL;
       }
 
       // Do we need to shut down the motor?:
@@ -891,7 +967,7 @@ void Bridge::loop(UByte mode) {
 	//_debug_uart->string_print((Character *)"\r\n");
 
 	_debug_uart->string_print((Character *)"\r\n");
-        character = '@';
+	character = '@';
       } else {
 	//character += 1;
       }
