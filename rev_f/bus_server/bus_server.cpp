@@ -437,13 +437,13 @@ void Bridge::loop(UByte mode) {
       };
       static const UShort binary_error_response[] = {
 	0x7e,  // Start of command
+	0x3d,
+	0x31,
 	0x00,
 	0x00,
 	0x00,
 	0x00,
-	0x00,
-	0x00,
-	0xff,	// Checksum
+	0x91,	// Checksum
       };
       
       // We need to know what time it is *now*:
